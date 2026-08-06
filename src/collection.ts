@@ -24,6 +24,7 @@ export class Collection<T extends Document> {
     private listeners: Set<{ filter: TFilter<T>; options?: FindOptions<T>; callback: SubscriptionCallback<T> }> = new Set();
 
     private validator?: ValidatorDef;
+    private mutex: Promise<void> = Promise.resolve();
     private hooks = {
         beforeInsert: [] as Array<(doc: T) => T | Promise<T>>,
         afterInsert: [] as Array<(doc: WithId<T>) => void | Promise<void>>,
@@ -153,6 +154,12 @@ export class Collection<T extends Document> {
         return result;
     }
 
+    private runLocked<R>(task: () => Promise<R>): Promise<R> {
+        const next = this.mutex.then(task, task);
+        this.mutex = next.catch(() => {}) as Promise<void>;
+        return next;
+    }
+
     setValidator(validator: ValidatorDef) {
         this.validator = validator;
     }
@@ -230,37 +237,40 @@ export class Collection<T extends Document> {
      * Throws DuplicateKeyError if the user-provided _id already exists.
      */
     async insertOne(document: T, options?: InsertOptions): Promise<WithId<T>> {
-        const data = await this.getValidData(false);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        let cloned = this.clone(document) as any;
+        return this.runLocked(async () => {
+            const data = await this.getValidData(false);
 
-        for (const hook of this.hooks.beforeInsert) {
-            cloned = await hook(cloned);
-        }
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            let cloned = this.clone(document) as any;
 
-        this.validateSchema(cloned);
+            for (const hook of this.hooks.beforeInsert) {
+                cloned = await hook(cloned);
+            }
 
-        const newId = typeof cloned._id === "string" ? cloned._id : uuid();
+            this.validateSchema(cloned);
 
-        if (data.some(doc => doc._id === newId)) {
-            throw new DuplicateKeyError(newId, this.collectionName);
-        }
+            const newId = typeof cloned._id === "string" ? cloned._id : uuid();
 
-        const newDoc = { ...cloned, _id: newId } as WithId<T>;
-        
-        if (options?.ttlMs) {
-            newDoc.__expiresAt = Date.now() + options.ttlMs;
-        }
+            if (data.some(doc => doc._id === newId)) {
+                throw new DuplicateKeyError(newId, this.collectionName);
+            }
 
-        data.push(newDoc);
-        await this.storage.write(data);
-        this.notifyListeners();
+            const newDoc = { ...cloned, _id: newId } as WithId<T>;
+            
+            if (options?.ttlMs) {
+                newDoc.__expiresAt = Date.now() + options.ttlMs;
+            }
 
-        for (const hook of this.hooks.afterInsert) {
-            await hook(newDoc);
-        }
+            data.push(newDoc);
+            await this.storage.write(data);
+            this.notifyListeners();
 
-        return newDoc;
+            for (const hook of this.hooks.afterInsert) {
+                await hook(newDoc);
+            }
+
+            return newDoc;
+        });
     }
 
     /**
@@ -268,45 +278,47 @@ export class Collection<T extends Document> {
      * Throws DuplicateKeyError if any user-provided _id already exists or duplicates within the batch.
      */
     async insertMany(documents: T[], options?: InsertOptions): Promise<WithId<T>[]> {
-        const data = await this.getValidData(false);
-        const newDocs: WithId<T>[] = [];
-        const seenIds = new Set<string>();
-        const now = Date.now();
+        return this.runLocked(async () => {
+            const data = await this.getValidData(false);
+            const newDocs: WithId<T>[] = [];
+            const seenIds = new Set<string>();
+            const now = Date.now();
 
-        for (const doc of documents) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            let cloned = this.clone(doc) as any;
-            
-            for (const hook of this.hooks.beforeInsert) {
-                cloned = await hook(cloned);
+            for (const doc of documents) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                let cloned = this.clone(doc) as any;
+                
+                for (const hook of this.hooks.beforeInsert) {
+                    cloned = await hook(cloned);
+                }
+                this.validateSchema(cloned);
+
+                const newId = typeof cloned._id === "string" ? cloned._id : uuid();
+
+                if (seenIds.has(newId) || data.some(d => d._id === newId)) {
+                    throw new DuplicateKeyError(newId, this.collectionName);
+                }
+
+                seenIds.add(newId);
+                const newDoc = { ...cloned, _id: newId } as WithId<T>;
+                if (options?.ttlMs) {
+                    newDoc.__expiresAt = now + options.ttlMs;
+                }
+                newDocs.push(newDoc);
             }
-            this.validateSchema(cloned);
 
-            const newId = typeof cloned._id === "string" ? cloned._id : uuid();
+            data.push(...newDocs);
+            await this.storage.write(data);
+            this.notifyListeners();
 
-            if (seenIds.has(newId) || data.some(d => d._id === newId)) {
-                throw new DuplicateKeyError(newId, this.collectionName);
+            for (const newDoc of newDocs) {
+                for (const hook of this.hooks.afterInsert) {
+                    await hook(newDoc);
+                }
             }
 
-            seenIds.add(newId);
-            const newDoc = { ...cloned, _id: newId } as WithId<T>;
-            if (options?.ttlMs) {
-                newDoc.__expiresAt = now + options.ttlMs;
-            }
-            newDocs.push(newDoc);
-        }
-
-        data.push(...newDocs);
-        await this.storage.write(data);
-        this.notifyListeners();
-
-        for (const newDoc of newDocs) {
-            for (const hook of this.hooks.afterInsert) {
-                await hook(newDoc);
-            }
-        }
-
-        return newDocs;
+            return newDocs;
+        });
     }
 
     async find(filter: TFilter<T> = {}, options?: FindOptions<T>): Promise<WithId<T>[]> {
@@ -322,150 +334,162 @@ export class Collection<T extends Document> {
         return processed.length > 0 ? this.clone(processed[0]) : null;
     }
 
+    /**
+     * Updates the first document that matches the filter.
+     */
     async updateOne(filter: TFilter<T>, update: Update<T>): Promise<{ matched: boolean; modified: boolean }> {
-        const data = await this.getValidData(false);
-        const index = data.findIndex(doc => Query.matches(doc, filter));
+        return this.runLocked(async () => {
+            const data = await this.getValidData(false);
+            const index = data.findIndex(doc => Query.matches(doc, filter));
 
-        if (index === -1) {
-            return { matched: false, modified: false };
-        }
-
-        let modified = false;
-        
-        let workingDoc = this.clone(data[index]);
-        for (const hook of this.hooks.beforeUpdate) {
-            workingDoc = await hook(workingDoc);
-        }
-        
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const target = workingDoc as any; 
-
-        if (update.$set) {
-            for (const key in update.$set) {
-                if (key === "_id") continue;
-                if (target[key] !== update.$set[key as keyof T]) {
-                    target[key] = update.$set[key as keyof T];
-                    modified = true;
-                }
+            if (index === -1) {
+                return { matched: false, modified: false };
             }
-        }
 
-        if (update.$inc) {
-            for (const key in update.$inc) {
-                if (key === "_id") continue;
-                if (typeof target[key] === "number") {
-                    target[key] += update.$inc[key as keyof T] as number;
-                } else {
-                    target[key] = update.$inc[key as keyof T];
-                }
-                modified = true;
+            let modified = false;
+            
+            let workingDoc = this.clone(data[index]);
+            for (const hook of this.hooks.beforeUpdate) {
+                workingDoc = await hook(workingDoc);
             }
-        }
+            
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const target = workingDoc as any; 
 
-        if (update.$unset) {
-            for (const key in update.$unset) {
-                if (key === "_id") continue;
-                if (key in target) {
-                    delete target[key];
-                    modified = true;
-                }
-            }
-        }
-
-        if (update.$push) {
-            for (const key in update.$push) {
-                if (key === "_id") continue;
-                if (!Array.isArray(target[key])) {
-                    target[key] = [];
-                }
-                target[key].push(update.$push[key as keyof T]);
-                modified = true;
-            }
-        }
-
-        if (update.$pull) {
-            for (const key in update.$pull) {
-                if (key === "_id") continue;
-                if (Array.isArray(target[key])) {
-                    const pullVal = update.$pull[key as keyof T];
-                    const originalLength = target[key].length;
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    target[key] = target[key].filter((item: any) => {
-                        if (typeof pullVal === "object" && pullVal !== null) {
-                             return JSON.stringify(item) !== JSON.stringify(pullVal);
-                        }
-                        return item !== pullVal;
-                    });
-                    if (target[key].length !== originalLength) {
+            if (update.$set) {
+                for (const key in update.$set) {
+                    if (key === "_id") continue;
+                    if (target[key] !== update.$set[key as keyof T]) {
+                        target[key] = update.$set[key as keyof T];
                         modified = true;
                     }
                 }
             }
-        }
 
-        if (modified) {
-            this.validateSchema(workingDoc);
-            data[index] = workingDoc;
-            await this.storage.write(data);
-            this.notifyListeners();
-            for (const hook of this.hooks.afterUpdate) {
-                await hook(workingDoc);
+            if (update.$inc) {
+                for (const key in update.$inc) {
+                    if (key === "_id") continue;
+                    if (typeof target[key] === "number") {
+                        target[key] += update.$inc[key as keyof T] as number;
+                    } else {
+                        target[key] = update.$inc[key as keyof T];
+                    }
+                    modified = true;
+                }
             }
-        }
 
-        return { matched: true, modified };
+            if (update.$unset) {
+                for (const key in update.$unset) {
+                    if (key === "_id") continue;
+                    if (key in target) {
+                        delete target[key];
+                        modified = true;
+                    }
+                }
+            }
+
+            if (update.$push) {
+                for (const key in update.$push) {
+                    if (key === "_id") continue;
+                    if (!Array.isArray(target[key])) {
+                        target[key] = [];
+                    }
+                    target[key].push(update.$push[key as keyof T]);
+                    modified = true;
+                }
+            }
+
+            if (update.$pull) {
+                for (const key in update.$pull) {
+                    if (key === "_id") continue;
+                    if (Array.isArray(target[key])) {
+                        const pullVal = update.$pull[key as keyof T];
+                        const originalLength = target[key].length;
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        target[key] = target[key].filter((item: any) => {
+                            if (typeof pullVal === "object" && pullVal !== null) {
+                                 return JSON.stringify(item) !== JSON.stringify(pullVal);
+                            }
+                            return item !== pullVal;
+                        });
+                        if (target[key].length !== originalLength) {
+                            modified = true;
+                        }
+                    }
+                }
+            }
+
+            if (modified) {
+                this.validateSchema(workingDoc);
+                data[index] = workingDoc;
+                await this.storage.write(data);
+                this.notifyListeners();
+                for (const hook of this.hooks.afterUpdate) {
+                    await hook(workingDoc);
+                }
+            }
+
+            return { matched: true, modified };
+        });
     }
 
     async replaceOne(filter: TFilter<T>, replacement: T): Promise<{ matched: boolean; modified: boolean }> {
-        const data = await this.getValidData(false);
-        const index = data.findIndex(doc => Query.matches(doc, filter));
+        return this.runLocked(async () => {
+            const data = await this.getValidData(false);
+            const index = data.findIndex(doc => Query.matches(doc, filter));
 
-        if (index === -1) {
-            return { matched: false, modified: false };
-        }
+            if (index === -1) {
+                return { matched: false, modified: false };
+            }
 
-        const originalId = data[index]._id;
-        
-        let workingDoc = { ...(this.clone(replacement) as Record<string, unknown>), _id: originalId } as WithId<T>;
-        for (const hook of this.hooks.beforeUpdate) {
-            workingDoc = await hook(workingDoc);
-        }
-        
-        this.validateSchema(workingDoc);
-        
-        data[index] = workingDoc;
-        await this.storage.write(data);
-        this.notifyListeners();
-        
-        for (const hook of this.hooks.afterUpdate) {
-            await hook(workingDoc);
-        }
-        
-        return { matched: true, modified: true };
+            const originalId = data[index]._id;
+            
+            let workingDoc = { ...(this.clone(replacement) as Record<string, unknown>), _id: originalId } as WithId<T>;
+            for (const hook of this.hooks.beforeUpdate) {
+                workingDoc = await hook(workingDoc);
+            }
+            
+            this.validateSchema(workingDoc);
+            
+            data[index] = workingDoc;
+            await this.storage.write(data);
+            this.notifyListeners();
+            
+            for (const hook of this.hooks.afterUpdate) {
+                await hook(workingDoc);
+            }
+            
+            return { matched: true, modified: true };
+        });
     }
 
+    /**
+     * Deletes the first document that matches the filter.
+     */
     async deleteOne(filter: TFilter<T>): Promise<{ deletedCount: number }> {
-        const data = await this.getValidData(false);
-        const index = data.findIndex(doc => Query.matches(doc, filter));
+        return this.runLocked(async () => {
+            const data = await this.getValidData(false);
+            const index = data.findIndex(doc => Query.matches(doc, filter));
 
-        if (index === -1) {
-            return { deletedCount: 0 };
-        }
+            if (index === -1) {
+                return { deletedCount: 0 };
+            }
 
-        const docToDelete = data[index];
-        for (const hook of this.hooks.beforeDelete) {
-            await hook(docToDelete);
-        }
+            const docToDelete = data[index];
+            for (const hook of this.hooks.beforeDelete) {
+                await hook(docToDelete);
+            }
 
-        data.splice(index, 1);
-        await this.storage.write(data);
-        this.notifyListeners();
-        
-        for (const hook of this.hooks.afterDelete) {
-            await hook(docToDelete);
-        }
+            data.splice(index, 1);
+            await this.storage.write(data);
+            this.notifyListeners();
+            
+            for (const hook of this.hooks.afterDelete) {
+                await hook(docToDelete);
+            }
 
-        return { deletedCount: 1 };
+            return { deletedCount: 1 };
+        });
     }
 
     async count(): Promise<number> {
@@ -473,8 +497,13 @@ export class Collection<T extends Document> {
         return data.length;
     }
 
+    /**
+     * Clears all documents from the collection.
+     */
     async clear(): Promise<void> {
-        await this.storage.clear();
-        this.notifyListeners();
+        return this.runLocked(async () => {
+            await this.storage.clear();
+            this.notifyListeners();
+        });
     }
 }
