@@ -159,7 +159,7 @@
     <h1>BrowserDB</h1>
     <p class="tagline">A lightweight client-side database optimized for the localStorage backend. Zero config. TypeScript-first. CDN ready.</p>
     <div class="header-meta">
-        <span class="pill pill-outline">v1.0.6</span>
+        <span class="pill pill-outline">v1.0.7</span>
         <span class="pill pill-outline">TypeScript</span>
         <span class="pill pill-outline">~7 KB gzipped</span>
         <span class="pill pill-outline">Auto comression</span>
@@ -215,7 +215,7 @@
     <div class="card">
         <div class="card-icon">🔥</div>
         <h4>Auto-Compression</h4>
-        <p>Passes all documents through <code>CompressionStream</code> and packs them via a custom UTF-16 bit-packer, yielding <strong>~15-20MB</strong> of space within the browser's 5MB localStorage limit!</p>
+        <p>Passes all documents through <code>CompressionStream</code> and packs them via a custom UTF-16 bit-packer, yielding <strong>up to 60MB</strong> of space within the browser's 5MB localStorage limit!</p>
     </div>
     <div class="card">
         <div class="card-icon">🖼️</div>
@@ -260,7 +260,7 @@
 <p>BrowserDB leverages native browser streams to prevent heavy string operations from blocking the main thread, while maximizing storage density.</p>
 <ul>
     <li><strong>Asynchronous Execution:</strong> By using <code>async/await</code> for all operations, massive compression streams and stringifications are deferred, keeping the UI perfectly responsive.</li>
-    <li><strong>Storage Compression (Deflate):</strong> Instead of hitting the 5MB wall and crashing, BrowserDB uses background CPU cycles to dynamically compress your JSON into Base64 using <code>CompressionStream</code>. This trades a microsecond of CPU time to give you up to <strong>20MB</strong> of effective storage.</li>
+    <li><strong>Storage Compression (Deflate):</strong> Instead of hitting the 5MB wall and crashing, BrowserDB uses background CPU cycles to dynamically compress your JSON into Base64 using <code>CompressionStream</code>. This trades a microsecond of CPU time to give you up to <strong>60MB</strong> of effective storage.</li>
     <li><strong>Instant Read Caching:</strong> Reads from collections hit an intelligent in-memory cache instantly. Slow decompression logic only executes when your data actually changes.</li>
     <li><strong>Cross-Tab Safety:</strong> The cache safely invalidates itself when it detects that <code>localStorage</code> was updated from another browser tab, guaranteeing flawless synchronization.</li>
 </ul>
@@ -270,7 +270,7 @@
 <table class="dt">
     <thead><tr><th>Metric</th><th>Native <code>localStorage</code></th><th>BrowserDB</th></tr></thead>
     <tbody>
-        <tr><td><strong>Storage Size</strong></td><td>~115.40 KB</td><td><strong>~8.80 KB</strong> (13x smaller!)</td></tr>
+        <tr><td><strong>Storage Size</strong></td><td>~115.40 KB</td><td><strong>~8.80 KB</strong> (~12x extra space)</td></tr>
         <tr><td><strong>Execution Time</strong></td><td>1.00 ms (Blocking)</td><td><strong>8.10 ms</strong> (Non-blocking)</td></tr>
     </tbody>
 </table>
@@ -286,7 +286,7 @@
     <thead><tr><th>Feature</th><th>BrowserDB (localStorage + Compression)</th><th>IndexedDB</th></tr></thead>
     <tbody>
         <tr><td><strong>API Style</strong></td><td><code>async</code>/<code>await</code>, Simple, MongoDB-like</td><td>Asynchronous, Complex, Event-driven</td></tr>
-        <tr><td><strong>Storage Limit</strong></td><td>~15-20MB effective (Compressed)</td><td>Virtually Unlimited (GBs)</td></tr>
+        <tr><td><strong>Storage Limit</strong></td><td>~60MB effective (Compressed)</td><td>Virtually Unlimited (GBs)</td></tr>
         <tr><td><strong>Media Handling</strong></td><td>Built-in Auto-Resizing & WebP Conversion</td><td>Requires manual <code>Blob</code> management</td></tr>
         <tr><td><strong>Performance</strong></td><td>Streamed compression prevents UI blocking</td><td>Non-blocking; requires callback/Promise overhead</td></tr>
         <tr><td><strong>Data Types</strong></td><td>JSON stringifiable (loses Dates, Maps, Sets)</td><td>Structured Clone (preserves Dates, Maps, ArrayBuffers)</td></tr>
@@ -664,7 +664,7 @@ users.<span class="fn">clear</span>();</code></pre>
 </article>
 
 <footer class="page-footer">
-    <p>BrowserDB v1.0.6 · Created by <a href="https://github.com/lkkhwhb">lkkhwhb</a> · <a href="https://github.com/lkkhwhb/browserDB">GitHub</a> · MIT License</p>
+    <p>BrowserDB v1.0.7 · Created by <a href="https://github.com/lkkhwhb">lkkhwhb</a> · <a href="https://github.com/lkkhwhb/browserDB">GitHub</a> · MIT License</p>
 </footer>
 
 <script>
