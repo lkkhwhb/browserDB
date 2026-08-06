@@ -1,6 +1,6 @@
 {
   "name": "@lkkhwhb/browserdb",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "A lightweight client-side database optimized for the localStorage backend.",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
