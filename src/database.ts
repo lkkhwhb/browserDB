@@ -106,7 +106,6 @@ export class BrowserDB {
         if (typeof navigator !== "undefined" && navigator.storage && navigator.storage.estimate) {
             try {
                 const estimate = await navigator.storage.estimate();
-                if (estimate.usage !== undefined) usedBytes = estimate.usage;
                 if (estimate.quota !== undefined) quotaBytes = estimate.quota;
             } catch {
                 // Ignore API quota estimation errors
