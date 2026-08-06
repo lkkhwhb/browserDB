@@ -203,6 +203,11 @@
 <p>The browser's native <code>localStorage</code> is a flat key-value string store. BrowserDB transforms it into a structured document database with the developer experience of MongoDB.</p>
 <div class="card-grid">
     <div class="card">
+        <div class="card-icon">⚡</div>
+        <h4>In-Memory Caching</h4>
+        <p>Intelligently caches queries for instant read performance. Automatically invalidates on cross-tab updates to ensure flawless sync.</p>
+    </div>
+    <div class="card">
         <div class="card-icon">🔥</div>
         <h4>Auto-Compression</h4>
         <p>Passes all documents through the native <code>CompressionStream</code>, yielding <strong>~15-20MB</strong> of space within the browser's 5MB localStorage limit!</p>
@@ -251,7 +256,8 @@
 <ul>
     <li><strong>Asynchronous Execution:</strong> By using <code>async/await</code> for all operations, massive compression streams and stringifications are deferred, keeping the UI perfectly responsive.</li>
     <li><strong>Storage Compression (Deflate):</strong> Instead of hitting the 5MB wall and crashing, BrowserDB uses background CPU cycles to dynamically compress your JSON into Base64 using <code>CompressionStream</code>. This trades a microsecond of CPU time to give you up to <strong>20MB</strong> of effective storage.</li>
-    <li><strong>Fast Reads:</strong> Methods like <code>findOne</code> and <code>find</code> decompress the collection on-the-fly. Once decompressed, filtering logic executes at native JavaScript speeds.</li>
+    <li><strong>Instant Read Caching:</strong> Reads from collections hit an intelligent in-memory cache instantly. Slow decompression logic only executes when your data actually changes.</li>
+    <li><strong>Cross-Tab Safety:</strong> The cache safely invalidates itself when it detects that <code>localStorage</code> was updated from another browser tab, guaranteeing flawless synchronization.</li>
 </ul>
 </section>
 

@@ -9,6 +9,7 @@ BrowserDB provides a clean, strongly typed API for storing and querying JSON doc
 
 ## Features
 
+* **⚡ In-Memory Caching (NEW!)**: Automatically caches documents in memory for instant read performance while perfectly synchronizing cross-tab updates.
 * **🔥 Auto-Compression (NEW!)**: Automatically compresses all documents through native `CompressionStream` (deflate), giving you **~15-20MB of usable space** while staying under the browser's 5MB limit!
 * **🖼️ Image Optimization API**: The built-in `db.images()` API handles file uploads by auto-resizing and converting images to highly efficient WebP Base64 strings.
 * **Zero External Config**: Works out of the box in modern browsers, Vite (React TS / JS), Next.js, and vanilla applications.
@@ -380,7 +381,8 @@ BrowserDB leverages native browser streams to prevent heavy string operations fr
 
 * **Asynchronous Execution:** By using `async/await` for all operations, massive compression streams and stringifications are deferred, keeping the UI perfectly responsive.
 * **Storage Compression (Deflate):** Instead of hitting the 5MB wall and crashing, BrowserDB uses background CPU cycles to dynamically compress your JSON into Base64 using `CompressionStream`. This trades a microsecond of CPU time to give you up to **20MB** of effective storage.
-* **Fast Reads:** Methods like `findOne` and `find` decompress the collection on-the-fly. Once decompressed, filtering logic executes at native JavaScript speeds.
+* **Instant Read Caching:** Reads from collections hit an intelligent in-memory cache instantly. Slow decompression logic only executes when your data actually changes.
+* **Cross-Tab Safety:** The cache safely invalidates itself when it detects that `localStorage` was updated from another browser tab, guaranteeing flawless synchronization.
 
 ---
 

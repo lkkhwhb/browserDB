@@ -17,10 +17,19 @@ import { DataCorruptionError, DatabaseError, QuotaExceededError } from "./errors
 export class Storage<T> {
     private readonly key: string;
     private readonly collectionName: string;
+    private cachedData: T[] | null = null;
 
     constructor(key: string, collectionName: string) {
         this.key = key;
         this.collectionName = collectionName;
+
+        if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
+            window.addEventListener("storage", (e) => {
+                if (e.key === this.key) {
+                    this.cachedData = null;
+                }
+            });
+        }
     }
 
     private async compress(data: string): Promise<string> {
@@ -65,6 +74,10 @@ export class Storage<T> {
     }
 
     async read(): Promise<T[]> {
+        if (this.cachedData !== null) {
+            return [...this.cachedData];
+        }
+
         if (typeof localStorage === "undefined") {
             return [];
         }
@@ -73,7 +86,8 @@ export class Storage<T> {
 
         try {
             const decompressed = await this.decompress(raw);
-            return JSON.parse(decompressed) as T[];
+            this.cachedData = JSON.parse(decompressed) as T[];
+            return [...this.cachedData];
         } catch {
             throw new DataCorruptionError(this.collectionName);
         }
@@ -83,10 +97,12 @@ export class Storage<T> {
         if (typeof localStorage === "undefined") {
             throw new DatabaseError("localStorage is not available.");
         }
+        
         try {
             const raw = JSON.stringify(data);
             const compressed = await this.compress(raw);
             localStorage.setItem(this.key, compressed);
+            this.cachedData = [...data];
         } catch (e) {
             if (
                 (typeof DOMException !== "undefined" && e instanceof DOMException && e.name === "QuotaExceededError") ||
@@ -99,6 +115,7 @@ export class Storage<T> {
     }
 
     async clear(): Promise<void> {
+        this.cachedData = null;
         if (typeof localStorage !== "undefined") {
             localStorage.removeItem(this.key);
         }
