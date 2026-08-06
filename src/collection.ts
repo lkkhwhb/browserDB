@@ -42,8 +42,8 @@ export class Collection<T extends Document> {
      * Inserts a document into the collection.
      * Throws DuplicateKeyError if the user-provided _id already exists.
      */
-    insertOne(document: T): WithId<T> {
-        const data = this.storage.read();
+    async insertOne(document: T): Promise<WithId<T>> {
+        const data = await this.storage.read();
         const cloned = this.clone(document) as Record<string, unknown>;
         const newId = typeof cloned._id === "string" ? cloned._id : uuid();
 
@@ -54,7 +54,7 @@ export class Collection<T extends Document> {
         const newDoc = { ...cloned, _id: newId } as WithId<T>;
 
         data.push(newDoc);
-        this.storage.write(data);
+        await this.storage.write(data);
 
         return newDoc;
     }
@@ -63,8 +63,8 @@ export class Collection<T extends Document> {
      * Inserts multiple documents into the collection.
      * Throws DuplicateKeyError if any user-provided _id already exists or duplicates within the batch.
      */
-    insertMany(documents: T[]): WithId<T>[] {
-        const data = this.storage.read();
+    async insertMany(documents: T[]): Promise<WithId<T>[]> {
+        const data = await this.storage.read();
         const newDocs: WithId<T>[] = [];
         const seenIds = new Set<string>();
 
@@ -81,24 +81,24 @@ export class Collection<T extends Document> {
         }
 
         data.push(...newDocs);
-        this.storage.write(data);
+        await this.storage.write(data);
 
         return newDocs;
     }
 
-    find(filter: Filter<T> = {}): WithId<T>[] {
-        const data = this.storage.read();
+    async find(filter: Filter<T> = {}): Promise<WithId<T>[]> {
+        const data = await this.storage.read();
         return this.clone(data.filter(doc => Query.matches(doc, filter)));
     }
 
-    findOne(filter: Filter<T>): WithId<T> | null {
-        const data = this.storage.read();
+    async findOne(filter: Filter<T>): Promise<WithId<T> | null> {
+        const data = await this.storage.read();
         const result = data.find(doc => Query.matches(doc, filter));
         return result ? this.clone(result) : null;
     }
 
-    updateOne(filter: Filter<T>, update: Update<T>): { matched: boolean; modified: boolean } {
-        const data = this.storage.read();
+    async updateOne(filter: Filter<T>, update: Update<T>): Promise<{ matched: boolean; modified: boolean }> {
+        const data = await this.storage.read();
         const index = data.findIndex(doc => Query.matches(doc, filter));
 
         if (index === -1) {
@@ -110,15 +110,15 @@ export class Collection<T extends Document> {
             delete safeUpdate._id; // _id should be immutable
 
             data[index] = { ...data[index], ...safeUpdate } as WithId<T>;
-            this.storage.write(data);
+            await this.storage.write(data);
             return { matched: true, modified: true };
         }
 
         return { matched: true, modified: false };
     }
 
-    deleteOne(filter: Filter<T>): { deletedCount: number } {
-        const data = this.storage.read();
+    async deleteOne(filter: Filter<T>): Promise<{ deletedCount: number }> {
+        const data = await this.storage.read();
         const index = data.findIndex(doc => Query.matches(doc, filter));
 
         if (index === -1) {
@@ -126,16 +126,17 @@ export class Collection<T extends Document> {
         }
 
         data.splice(index, 1);
-        this.storage.write(data);
+        await this.storage.write(data);
 
         return { deletedCount: 1 };
     }
 
-    count(): number {
-        return this.storage.read().length;
+    async count(): Promise<number> {
+        const data = await this.storage.read();
+        return data.length;
     }
 
-    clear(): void {
-        this.storage.clear();
+    async clear(): Promise<void> {
+        await this.storage.clear();
     }
 }

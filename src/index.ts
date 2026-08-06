@@ -18,4 +18,5 @@ export * from "./utils/uuid";
 export * from "./query";
 export * from "./storage";
 export * from "./collection";
+export * from "./imageStore";
 export * from "./database";

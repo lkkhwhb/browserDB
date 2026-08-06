@@ -23,7 +23,48 @@ export class Storage<T> {
         this.collectionName = collectionName;
     }
 
-    read(): T[] {
+    private async compress(data: string): Promise<string> {
+        if (typeof CompressionStream === "undefined" || typeof btoa === "undefined") {
+            return data;
+        }
+        try {
+            const stream = new Blob([data]).stream().pipeThrough(new CompressionStream("deflate"));
+            const buffer = await new Response(stream).arrayBuffer();
+            let binary = "";
+            const bytes = new Uint8Array(buffer);
+            for (let i = 0; i < bytes.length; i++) {
+                binary += String.fromCharCode(bytes[i]);
+            }
+            return "CMP_" + btoa(binary);
+        } catch {
+            return data;
+        }
+    }
+
+    private async decompress(data: string): Promise<string> {
+        if (!data.startsWith("CMP_")) {
+            return data;
+        }
+        if (typeof DecompressionStream === "undefined" || typeof atob === "undefined") {
+            // Cannot decompress if environment lacks support, just return string
+            // Ideally should not happen if write environment had it.
+            throw new DataCorruptionError(this.collectionName);
+        }
+        try {
+            const base64 = data.substring(4);
+            const binary = atob(base64);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) {
+                bytes[i] = binary.charCodeAt(i);
+            }
+            const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate"));
+            return await new Response(stream).text();
+        } catch {
+            throw new DataCorruptionError(this.collectionName);
+        }
+    }
+
+    async read(): Promise<T[]> {
         if (typeof localStorage === "undefined") {
             return [];
         }
@@ -31,18 +72,21 @@ export class Storage<T> {
         if (!raw) return [];
 
         try {
-            return JSON.parse(raw) as T[];
+            const decompressed = await this.decompress(raw);
+            return JSON.parse(decompressed) as T[];
         } catch {
             throw new DataCorruptionError(this.collectionName);
         }
     }
 
-    write(data: T[]): void {
+    async write(data: T[]): Promise<void> {
         if (typeof localStorage === "undefined") {
             throw new DatabaseError("localStorage is not available.");
         }
         try {
-            localStorage.setItem(this.key, JSON.stringify(data));
+            const raw = JSON.stringify(data);
+            const compressed = await this.compress(raw);
+            localStorage.setItem(this.key, compressed);
         } catch (e) {
             if (
                 (typeof DOMException !== "undefined" && e instanceof DOMException && e.name === "QuotaExceededError") ||
@@ -54,7 +98,7 @@ export class Storage<T> {
         }
     }
 
-    clear(): void {
+    async clear(): Promise<void> {
         if (typeof localStorage !== "undefined") {
             localStorage.removeItem(this.key);
         }

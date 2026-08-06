@@ -14,11 +14,13 @@
 
 import { Collection } from "./collection";
 import { DatabaseError } from "./errors";
+import { ImageStore } from "./imageStore";
 import { DatabaseStats, Document } from "./types";
 
 export class BrowserDB {
     private readonly prefix = "browserdb_";
     private collections: Map<string, Collection<Document>> = new Map();
+    private imageStores: Map<string, ImageStore> = new Map();
 
     constructor() {
         if (typeof window === "undefined" || typeof localStorage === "undefined") {
@@ -38,8 +40,15 @@ export class BrowserDB {
         return this.collections.get(name) as unknown as Collection<T>;
     }
 
+    images(name: string): ImageStore {
+        if (!this.imageStores.has(name)) {
+            this.imageStores.set(name, new ImageStore(name, this.prefix));
+        }
+        return this.imageStores.get(name)!;
+    }
+
     has(name: string): boolean {
-        return localStorage.getItem(`${this.prefix}${name}`) !== null;
+        return localStorage.getItem(`${this.prefix}${name}`) !== null || localStorage.getItem(`${this.prefix}img_${name}_`) !== null;
     }
 
     dropCollection(name: string): void {
@@ -57,6 +66,7 @@ export class BrowserDB {
         }
         keysToRemove.forEach(key => localStorage.removeItem(key));
         this.collections.clear();
+        this.imageStores.clear();
     }
 
     /**
@@ -82,11 +92,13 @@ export class BrowserDB {
                     usedBytes += (key.length + rawData.length) * 2;
                 }
 
-                try {
-                    const parsed = JSON.parse(rawData);
-                    if (Array.isArray(parsed)) docsCount += parsed.length;
-                } catch {
-                    // Ignore JSON parsing errors for stats calculation
+                if (!key.startsWith(`${this.prefix}img_`)) {
+                    try {
+                        const collectionName = key.substring(this.prefix.length);
+                        docsCount += await this.collection(collectionName).count();
+                    } catch {
+                        // Ignore decompression/parsing errors for stats
+                    }
                 }
             }
         }
