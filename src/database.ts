@@ -86,11 +86,9 @@ export class BrowserDB {
                 collectionsCount++;
                 const rawData = localStorage.getItem(key) || "[]";
 
-                if (typeof TextEncoder === "function") {
-                    usedBytes += new TextEncoder().encode(key).length + new TextEncoder().encode(rawData).length;
-                } else {
-                    usedBytes += (key.length + rawData.length) * 2;
-                }
+                // localStorage strictly stores strings as UTF-16 (2 bytes per character).
+                // Do NOT use TextEncoder (UTF-8), as it overestimates size for high-range characters.
+                usedBytes += (key.length + rawData.length) * 2;
 
                 if (!key.startsWith(`${this.prefix}img_`)) {
                     try {
