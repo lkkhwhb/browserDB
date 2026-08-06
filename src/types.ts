@@ -55,8 +55,21 @@ export interface FindOptions<T> {
 
 export type SubscriptionCallback<T> = (data: WithId<T>[]) => void;
 
-export type SchemaDef<T> = {
-    [P in keyof T]?: "string" | "number" | "boolean" | "object" | "array" | "any";
+export interface JSONSchema {
+    bsonType?: string | string[];
+    type?: string | string[];
+    required?: string[];
+    properties?: Record<string, JSONSchema>;
+    minimum?: number;
+    maximum?: number;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    enum?: any[];
+    description?: string;
+    items?: JSONSchema | JSONSchema[];
+}
+
+export type ValidatorDef = {
+    $jsonSchema: JSONSchema;
 };
 
 export interface DatabaseStats {

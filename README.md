@@ -9,7 +9,9 @@ BrowserDB provides a clean, strongly typed API for storing and querying JSON doc
 
 ## Features
 
-* **🔄 Reactive Subscriptions (NEW!)**: Automatically sync UIs across tabs in real-time when data changes.
+* **🛡️ Schema Validation (NEW!)**: Enforce strict data shapes at runtime with MongoDB-compliant `$jsonSchema` validators via `setValidator()`.
+* **🪝 Middleware Hooks (NEW!)**: Intercept operations using `beforeInsert`, `afterUpdate`, and more!
+* **🔄 Reactive Subscriptions**: Automatically sync UIs across tabs in real-time when data changes.
 * **📦 Transactions & Batching (NEW!)**: Group multiple database writes in memory and flush to disk in a single transaction.
 * **🔍 Fluent Queries (NEW!)**: Supports pagination, sorting, and projection directly in `find()`.
 * **⚡ In-Memory Caching**: Automatically caches documents in memory for instant read performance while perfectly synchronizing cross-tab updates.
@@ -369,6 +371,56 @@ await db.transaction(async () => {
     await users.deleteOne({ name: "Charlie" });
 }); // Automatically commits and writes to disk here!
 ```
+
+---
+
+## Middleware Hooks
+
+BrowserDB provides a powerful middleware system to intercept database operations. You can modify documents before they are saved, or trigger background tasks after operations complete!
+
+```ts
+// Modify data before inserting
+users.beforeInsert(async (doc) => {
+    return { ...doc, createdAt: Date.now() };
+});
+
+// Trigger a toast notification after update
+users.afterUpdate((doc) => {
+    showToast(`User ${doc.name} was updated!`);
+});
+```
+Available hooks: `beforeInsert`, `afterInsert`, `beforeUpdate`, `afterUpdate`, `beforeDelete`, `afterDelete`.
+
+---
+
+## Schema Validation
+
+Ensure strict data shapes at runtime by defining a MongoDB-compliant `$jsonSchema` validator:
+
+```ts
+users.setValidator({
+    $jsonSchema: {
+        bsonType: "object",
+        required: ["name", "age"],
+        properties: {
+            name: {
+                bsonType: "string",
+                description: "must be a string and is required"
+            },
+            age: {
+                bsonType: "number",
+                minimum: 18,
+                description: "must be at least 18 and is required"
+            },
+            tags: {
+                bsonType: "array",
+                items: { bsonType: "string" }
+            }
+        }
+    }
+});
+```
+If you attempt to insert or update a document with invalid types, missing required fields, or out-of-range bounds, BrowserDB will instantly throw a `ValidationError` and block the operation, guaranteeing your database remains clean!
 
 ---
 

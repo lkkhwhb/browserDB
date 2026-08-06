@@ -4,7 +4,8 @@ import {
     DataCorruptionError,
     DatabaseError,
     DuplicateKeyError,
-    QuotaExceededError
+    QuotaExceededError,
+    ValidationError
 } from "../src";
 
 // Mock localStorage for Node environment testing
@@ -281,5 +282,80 @@ describe("BrowserDB Test Suite", () => {
 
         // should not trigger again
         expect(callCount).toBe(2);
+    });
+    it("should validate using $jsonSchema and throw ValidationError", async () => {
+        const db = new BrowserDB();
+        const users = db.collection<{ name: string; age: number; role?: string }>("users");
+
+        users.setValidator({
+            $jsonSchema: {
+                bsonType: "object",
+                required: ["name", "age"],
+                properties: {
+                    name: { bsonType: "string" },
+                    age: { bsonType: "number", minimum: 18, maximum: 100 },
+                    role: { enum: ["admin", "user"] }
+                }
+            }
+        });
+
+        // Valid insert
+        await users.insertOne({ name: "Alice", age: 20 });
+        
+        // Missing required field
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await expect(users.insertOne({ age: 25 } as any)).rejects.toThrow(ValidationError);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await expect(users.insertOne({ age: 25 } as any)).rejects.toThrow("Field 'name' is required");
+
+        // Invalid type
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await expect(users.insertOne({ name: 123, age: 25 } as any)).rejects.toThrow("Field 'name' must be one of [string], got number");
+
+        // Out of bounds minimum
+        await expect(users.insertOne({ name: "Bob", age: 17 })).rejects.toThrow("Field 'age' must be >= 18");
+
+        // Invalid enum
+        await expect(users.insertOne({ name: "Charlie", age: 30, role: "superadmin" })).rejects.toThrow("Field 'role' must be one of [admin, user]");
+        
+        // Should also validate on update
+        await expect(users.updateOne({ name: "Alice" }, { $set: { age: 10 } })).rejects.toThrow("Field 'age' must be >= 18");
+    });
+
+    it("should trigger middleware hooks on insert and update", async () => {
+        const db = new BrowserDB();
+        const users = db.collection<{ name: string; logs?: string[] }>("users");
+
+        let afterCallCount = 0;
+
+        users.beforeInsert(async (doc) => {
+            return { ...doc, logs: ["inserted"] };
+        });
+
+        users.afterInsert(async (doc) => {
+            expect(doc.logs).toContain("inserted");
+            afterCallCount++;
+        });
+
+        users.beforeUpdate(async (doc) => {
+            return { ...doc, logs: [...(doc.logs || []), "updated"] };
+        });
+
+        users.afterUpdate(async (doc) => {
+            expect(doc.logs).toContain("updated");
+            afterCallCount++;
+        });
+
+        const doc = await users.insertOne({ name: "MiddlewareTest" });
+        expect(doc.logs).toEqual(["inserted"]);
+        expect(afterCallCount).toBe(1);
+
+        const up = await users.updateOne({ name: "MiddlewareTest" }, { $set: { name: "MWT" } });
+        expect(up.modified).toBe(true);
+
+        const updatedDoc = await users.findOne({ name: "MWT" });
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        expect(updatedDoc!.logs).toEqual(["inserted", "updated"]);
+        expect(afterCallCount).toBe(2);
     });
 });

@@ -159,7 +159,7 @@
     <h1>BrowserDB</h1>
     <p class="tagline">A lightweight client-side database optimized for the localStorage backend. Zero config. TypeScript-first. CDN ready.</p>
     <div class="header-meta">
-        <span class="pill pill-outline">v1.0.7</span>
+        <span class="pill pill-outline">v1.1.0</span>
         <span class="pill pill-outline">TypeScript</span>
         <span class="pill pill-outline">~7 KB gzipped</span>
         <span class="pill pill-outline">Auto comression</span>
@@ -177,6 +177,7 @@
 </header>
 
 <nav class="toc" aria-label="Table of contents">
+    <div class="subtitle">v1.1.0 • Under 10KB Gzipped • Zero Dependencies</div>
     <div class="toc-title">Table of Contents</div>
     <ol>
         <li><a href="#why-browserdb">Why BrowserDB?</a></li>
@@ -242,7 +243,7 @@
         <h4>Transactions</h4>
         <p>Batch multiple writes in memory and flush them to <code>localStorage</code> in a single compressed write to save CPU cycles.</p>
     </div>
-</div>
+
     <div class="card">
         <div class="card-icon">🧠</div>
         <h4>Familiar API</h4>
@@ -262,6 +263,16 @@
         <div class="card-icon">🔧</div>
         <h4>Zero Configuration</h4>
         <p>No database setup, no migrations, no server. Instantiate and start inserting documents immediately in any browser.</p>
+    </div>
+    <div class="card">
+        <div class="card-icon">🪝</div>
+        <h4>Middleware Hooks</h4>
+        <p>Intercept inserts, updates, and deletes to modify data on the fly or trigger side-effects like UI notifications.</p>
+    </div>
+    <div class="card">
+        <div class="card-icon">🛡️</div>
+        <h4>Schema Validation</h4>
+        <p>Define MongoDB-compliant <code>$jsonSchema</code> validators to enforce strict data shapes, types, and bounds at runtime.</p>
     </div>
 </div>
 </section>
@@ -675,7 +686,7 @@ users.<span class="fn">clear</span>();</code></pre>
 </article>
 
 <footer class="page-footer">
-    <p>BrowserDB v1.0.7 · Created by <a href="https://github.com/lkkhwhb">lkkhwhb</a> · <a href="https://github.com/lkkhwhb/browserDB">GitHub</a> · MIT License</p>
+    <p>BrowserDB v1.1.0 · Created by <a href="https://github.com/lkkhwhb">lkkhwhb</a> · <a href="https://github.com/lkkhwhb/browserDB">GitHub</a> · MIT License</p>
 </footer>
 
 <script>

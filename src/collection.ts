@@ -15,7 +15,7 @@
 import { DuplicateKeyError, ValidationError } from "./errors";
 import { Query } from "./query";
 import { Storage } from "./storage";
-import { Document, Filter as TFilter, FindOptions, InsertOptions, SchemaDef, SubscriptionCallback, Update, WithId } from "./types";
+import { Document, Filter as TFilter, FindOptions, InsertOptions, JSONSchema, SubscriptionCallback, Update, ValidatorDef, WithId } from "./types";
 import { uuid } from "./utils/uuid";
 
 export class Collection<T extends Document> {
@@ -23,7 +23,7 @@ export class Collection<T extends Document> {
     private readonly collectionName: string;
     private listeners: Set<{ filter: TFilter<T>; options?: FindOptions<T>; callback: SubscriptionCallback<T> }> = new Set();
 
-    private schema?: SchemaDef<T>;
+    private validator?: ValidatorDef;
     private hooks = {
         beforeInsert: [] as Array<(doc: T) => T | Promise<T>>,
         afterInsert: [] as Array<(doc: WithId<T>) => void | Promise<void>>,
@@ -153,8 +153,8 @@ export class Collection<T extends Document> {
         return result;
     }
 
-    setSchema(schema: SchemaDef<T>) {
-        this.schema = schema;
+    setValidator(validator: ValidatorDef) {
+        this.validator = validator;
     }
 
     beforeInsert(fn: (doc: T) => T | Promise<T>) { this.hooks.beforeInsert.push(fn); }
@@ -166,16 +166,61 @@ export class Collection<T extends Document> {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     private validateSchema(doc: any) {
-        if (!this.schema) return;
-        for (const key in this.schema) {
-            const expectedType = this.schema[key as keyof T];
-            const val = doc[key];
-            if (expectedType === "any" || val === undefined) continue;
-            
-            if (expectedType === "array") {
-                if (!Array.isArray(val)) throw new ValidationError(`'${key}' must be an array`);
-            } else if (typeof val !== expectedType) {
-                throw new ValidationError(`'${key}' must be of type ${expectedType}`);
+        if (!this.validator || !this.validator.$jsonSchema) return;
+        this.evaluateJSONSchema(doc, this.validator.$jsonSchema, "root");
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    private evaluateJSONSchema(value: any, schema: JSONSchema, path: string) {
+        if (typeof value === "object" && !Array.isArray(value) && value !== null) {
+            if (schema.required) {
+                for (const req of schema.required) {
+                    if (value[req] === undefined || value[req] === null) {
+                        throw new ValidationError(`Field '${path === "root" ? req : path + "." + req}' is required`);
+                    }
+                }
+            }
+        }
+
+        if (value === undefined || value === null) return;
+
+        const typeDef = schema.bsonType || schema.type;
+        if (typeDef) {
+            const types = Array.isArray(typeDef) ? typeDef : [typeDef];
+            const valType = Array.isArray(value) ? "array" : typeof value;
+            const match = types.some(t => {
+                if (t === "number" || t === "double" || t === "int") return valType === "number";
+                if (t === "bool") return valType === "boolean";
+                return valType === t;
+            });
+            if (!match) throw new ValidationError(`Field '${path}' must be one of [${types.join(", ")}], got ${valType}`);
+        }
+
+        if (schema.enum && !schema.enum.includes(value)) {
+            throw new ValidationError(`Field '${path}' must be one of [${schema.enum.join(", ")}]`);
+        }
+
+        if (typeof value === "number") {
+            if (schema.minimum !== undefined && value < schema.minimum) {
+                throw new ValidationError(`Field '${path}' must be >= ${schema.minimum}`);
+            }
+            if (schema.maximum !== undefined && value > schema.maximum) {
+                throw new ValidationError(`Field '${path}' must be <= ${schema.maximum}`);
+            }
+        }
+
+        if (Array.isArray(value) && schema.items) {
+            const itemsSchema = Array.isArray(schema.items) ? schema.items[0] : schema.items;
+            for (let i = 0; i < value.length; i++) {
+                this.evaluateJSONSchema(value[i], itemsSchema, `${path}[${i}]`);
+            }
+        }
+
+        if (typeof value === "object" && !Array.isArray(value) && schema.properties) {
+            for (const key in value) {
+                if (schema.properties[key]) {
+                    this.evaluateJSONSchema(value[key], schema.properties[key], path === "root" ? key : `${path}.${key}`);
+                }
             }
         }
     }
