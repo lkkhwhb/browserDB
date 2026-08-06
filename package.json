@@ -1,6 +1,6 @@
 {
   "name": "@lkkhwhb/browserdb",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A lightweight, dependency-free, MongoDB-inspired document database built on top of the browser's localStorage.",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
