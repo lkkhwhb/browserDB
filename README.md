@@ -1,7 +1,7 @@
 # BrowserDB
 (@lkkhwhb/browserdb)
 
-> A lightweight, dependency-free, MongoDB-inspired document database built on top of the browser's `localStorage`.
+> A lightweight, MongoDB-inspired document database built on top of the browser's `localStorage`.
 
 BrowserDB provides a clean, strongly typed API for storing and querying JSON documents without dealing directly with `localStorage` or manual serialization.
 
