@@ -110,14 +110,24 @@ Import directly into any HTML page using a CDN link (jsDelivr or unpkg). No bund
 </head>
 <body>
   <h1>BrowserDB CDN Quickstart</h1>
+  <pre id="output"></pre>
 
   <script>
-    // Access BrowserDB from window global
-    const db = new window.BrowserDB.BrowserDB();
-    const notes = db.collection("notes");
+    try {
+      const db = new window.BrowserDB.BrowserDB();
+      const notes = db.collection("notes");
 
-    notes.insertOne({ title: "My First Note", content: "Hello World!" });
-    console.log("Notes in BrowserDB:", notes.find());
+      notes.clear();
+      notes.insertOne({ title: "My First Note", content: "Hello World!" });
+      notes.insertOne({ title: "Second Note", content: "It works!" });
+
+      const allNotes = notes.find();
+      document.getElementById("output").textContent = JSON.stringify(allNotes, null, 2);
+      console.log("BrowserDB works! Notes:", allNotes);
+    } catch (err) {
+      document.getElementById("output").textContent = "ERROR: " + err.message;
+      console.error(err);
+    }
   </script>
 </body>
 </html>

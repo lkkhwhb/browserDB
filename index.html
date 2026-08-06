@@ -280,7 +280,15 @@
     <pre><code><span class="op">&lt;</span><span class="pr">script</span> <span class="ty">src</span><span class="op">=</span><span class="str">"https://cdn.jsdelivr.net/npm/@lkkhwhb/browserdb/dist/browserdb.global.js"</span><span class="op">&gt;&lt;/</span><span class="pr">script</span><span class="op">&gt;</span>
 
 <span class="op">&lt;</span><span class="pr">script</span><span class="op">&gt;</span>
-    <span class="kw">const</span> db = <span class="kw">new</span> window.BrowserDB.<span class="fn">BrowserDB</span>();
+    <span class="kw">try</span> {
+        <span class="kw">const</span> db = <span class="kw">new</span> window.BrowserDB.<span class="fn">BrowserDB</span>();
+        <span class="kw">const</span> notes = db.<span class="fn">collection</span>(<span class="str">"notes"</span>);
+
+        notes.<span class="fn">insertOne</span>({ title: <span class="str">"My First Note"</span>, content: <span class="str">"Hello World!"</span> });
+        console.<span class="fn">log</span>(<span class="str">"Notes in BrowserDB:"</span>, notes.<span class="fn">find</span>());
+    } <span class="kw">catch</span> (err) {
+        console.<span class="fn">error</span>(err);
+    }
 <span class="op">&lt;/</span><span class="pr">script</span><span class="op">&gt;</span></code></pre>
 </div>
 <p>The CDN bundle is self-contained (all dependencies including <code>uuid</code> are bundled) and exposes <code>window.BrowserDB</code> globally.</p>
