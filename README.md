@@ -104,30 +104,44 @@ Import directly into any HTML page using a CDN link (jsDelivr or unpkg). No bund
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>BrowserDB CDN Example</title>
-  <!-- Load BrowserDB Standalone CDN Bundle from jsDelivr -->
-  <script src="https://cdn.jsdelivr.net/npm/@lkkhwhb/browserdb/dist/browserdb.global.js"></script>
+  <title>BrowserDB Demo</title>
+  <script src="https://cdn.jsdelivr.net/npm/@lkkhwhb/browserdb@latest/dist/browserdb.global.js"></script>
 </head>
 <body>
-  <h1>BrowserDB CDN Quickstart</h1>
-  <pre id="output"></pre>
+  <h1>BrowserDB Notes</h1>
+
+  <input id="titleInput" type="text" placeholder="Title" />
+  <input id="contentInput" type="text" placeholder="Content" />
+  <button onclick="addNote()">Insert</button>
+
+  <h2>All Notes</h2>
+  <ul id="notesList"></ul>
 
   <script>
-    try {
-      const db = new window.BrowserDB.BrowserDB();
-      const notes = db.collection("notes");
+    const db = new window.BrowserDB.BrowserDB();
+    const notes = db.collection("notes");
 
-      notes.clear();
-      notes.insertOne({ title: "My First Note", content: "Hello World!" });
-      notes.insertOne({ title: "Second Note", content: "It works!" });
-
-      const allNotes = notes.find();
-      document.getElementById("output").textContent = JSON.stringify(allNotes, null, 2);
-      console.log("BrowserDB works! Notes:", allNotes);
-    } catch (err) {
-      document.getElementById("output").textContent = "ERROR: " + err.message;
-      console.error(err);
+    function render() {
+      const list = document.getElementById("notesList");
+      list.innerHTML = "";
+      notes.find().forEach(n => {
+        const li = document.createElement("li");
+        li.textContent = n.title + ": " + n.content + " (" + n._id.slice(0,8) + "...)";
+        list.appendChild(li);
+      });
     }
+
+    function addNote() {
+      const title = document.getElementById("titleInput").value.trim();
+      const content = document.getElementById("contentInput").value.trim();
+      if (!title) return;
+      notes.insertOne({ title, content });
+      document.getElementById("titleInput").value = "";
+      document.getElementById("contentInput").value = "";
+      render();
+    }
+
+    render();
   </script>
 </body>
 </html>
@@ -136,7 +150,7 @@ Import directly into any HTML page using a CDN link (jsDelivr or unpkg). No bund
 #### unpkg CDN
 
 ```html
-<script src="https://unpkg.com/@lkkhwhb/browserdb/dist/browserdb.global.js"></script>
+<script src="https://unpkg.com/@lkkhwhb/browserdb@latest/dist/browserdb.global.js"></script>
 ```
 
 ---

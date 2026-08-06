@@ -274,22 +274,50 @@
 </div>
 
 <h3 id="install-cdn">CDN Script Tag</h3>
-<p>Load the standalone bundle directly in any HTML page. No bundler or build step required:</p>
+<p>Load the standalone bundle directly in any HTML page. No bundler or build step required. Here is a working prototype:</p>
 <div class="code-block">
     <div class="code-header"><span class="code-lang">HTML</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
-    <pre><code><span class="op">&lt;</span><span class="pr">script</span> <span class="ty">src</span><span class="op">=</span><span class="str">"https://cdn.jsdelivr.net/npm/@lkkhwhb/browserdb/dist/browserdb.global.js"</span><span class="op">&gt;&lt;/</span><span class="pr">script</span><span class="op">&gt;</span>
+    <pre><code><span class="op">&lt;!</span><span class="kw">DOCTYPE</span> html<span class="op">&gt;</span>
+<span class="op">&lt;</span><span class="pr">html</span> lang=<span class="str">"en"</span><span class="op">&gt;</span>
+<span class="op">&lt;</span><span class="pr">head</span><span class="op">&gt;</span>
+  <span class="op">&lt;</span><span class="pr">meta</span> charset=<span class="str">"UTF-8"</span><span class="op">&gt;</span>
+  <span class="op">&lt;</span><span class="pr">script</span> <span class="ty">src</span><span class="op">=</span><span class="str">"https://cdn.jsdelivr.net/npm/@lkkhwhb/browserdb@latest/dist/browserdb.global.js"</span><span class="op">&gt;&lt;/</span><span class="pr">script</span><span class="op">&gt;</span>
+<span class="op">&lt;/</span><span class="pr">head</span><span class="op">&gt;</span>
+<span class="op">&lt;</span><span class="pr">body</span><span class="op">&gt;</span>
+  <span class="op">&lt;</span><span class="pr">h1</span><span class="op">&gt;</span>BrowserDB Notes<span class="op">&lt;/</span><span class="pr">h1</span><span class="op">&gt;</span>
+  <span class="op">&lt;</span><span class="pr">input</span> id=<span class="str">"titleInput"</span> type=<span class="str">"text"</span> placeholder=<span class="str">"Title"</span> <span class="op">/&gt;</span>
+  <span class="op">&lt;</span><span class="pr">input</span> id=<span class="str">"contentInput"</span> type=<span class="str">"text"</span> placeholder=<span class="str">"Content"</span> <span class="op">/&gt;</span>
+  <span class="op">&lt;</span><span class="pr">button</span> onclick=<span class="str">"addNote()"</span><span class="op">&gt;</span>Insert<span class="op">&lt;/</span><span class="pr">button</span><span class="op">&gt;</span>
+  <span class="op">&lt;</span><span class="pr">ul</span> id=<span class="str">"notesList"</span><span class="op">&gt;&lt;/</span><span class="pr">ul</span><span class="op">&gt;</span>
 
-<span class="op">&lt;</span><span class="pr">script</span><span class="op">&gt;</span>
-    <span class="kw">try</span> {
-        <span class="kw">const</span> db = <span class="kw">new</span> window.BrowserDB.<span class="fn">BrowserDB</span>();
-        <span class="kw">const</span> notes = db.<span class="fn">collection</span>(<span class="str">"notes"</span>);
+  <span class="op">&lt;</span><span class="pr">script</span><span class="op">&gt;</span>
+    <span class="kw">const</span> db = <span class="kw">new</span> window.BrowserDB.<span class="fn">BrowserDB</span>();
+    <span class="kw">const</span> notes = db.<span class="fn">collection</span>(<span class="str">"notes"</span>);
 
-        notes.<span class="fn">insertOne</span>({ title: <span class="str">"My First Note"</span>, content: <span class="str">"Hello World!"</span> });
-        console.<span class="fn">log</span>(<span class="str">"Notes in BrowserDB:"</span>, notes.<span class="fn">find</span>());
-    } <span class="kw">catch</span> (err) {
-        console.<span class="fn">error</span>(err);
+    <span class="kw">function</span> <span class="fn">render</span>() {
+      <span class="kw">const</span> list = document.<span class="fn">getElementById</span>(<span class="str">"notesList"</span>);
+      list.innerHTML = <span class="str">""</span>;
+      notes.<span class="fn">find</span>().<span class="fn">forEach</span>(n =&gt; {
+        <span class="kw">const</span> li = document.<span class="fn">createElement</span>(<span class="str">"li"</span>);
+        li.textContent = n.title + <span class="str">": "</span> + n.content;
+        list.<span class="fn">appendChild</span>(li);
+      });
     }
-<span class="op">&lt;/</span><span class="pr">script</span><span class="op">&gt;</span></code></pre>
+
+    <span class="kw">function</span> <span class="fn">addNote</span>() {
+      <span class="kw">const</span> title = document.<span class="fn">getElementById</span>(<span class="str">"titleInput"</span>).value.<span class="fn">trim</span>();
+      <span class="kw">const</span> content = document.<span class="fn">getElementById</span>(<span class="str">"contentInput"</span>).value.<span class="fn">trim</span>();
+      <span class="kw">if</span> (!title) <span class="kw">return</span>;
+      notes.<span class="fn">insertOne</span>({ title, content });
+      document.<span class="fn">getElementById</span>(<span class="str">"titleInput"</span>).value = <span class="str">""</span>;
+      document.<span class="fn">getElementById</span>(<span class="str">"contentInput"</span>).value = <span class="str">""</span>;
+      <span class="fn">render</span>();
+    }
+
+    <span class="fn">render</span>();
+  <span class="op">&lt;/</span><span class="pr">script</span><span class="op">&gt;</span>
+<span class="op">&lt;/</span><span class="pr">body</span><span class="op">&gt;</span>
+<span class="op">&lt;/</span><span class="pr">html</span><span class="op">&gt;</span></code></pre>
 </div>
 <p>The CDN bundle is self-contained (all dependencies including <code>uuid</code> are bundled) and exposes <code>window.BrowserDB</code> globally.</p>
 </section>

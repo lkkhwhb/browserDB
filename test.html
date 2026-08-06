@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>BrowserDB — Local Test</title>
+  <script src="./dist/browserdb.global.js"></script>
+</head>
+<body>
+
+<h1>BrowserDB Local Test</h1>
+<p>A small working prototype. Open DevTools console for full output.</p>
+
+<h2>Add a Note</h2>
+<input id="titleInput" type="text" placeholder="Note title" />
+<input id="contentInput" type="text" placeholder="Note content" />
+<button onclick="addNote()">Insert</button>
+
+<h2>Find by Title</h2>
+<input id="searchInput" type="text" placeholder="Search by title" />
+<button onclick="searchNote()">Find</button>
+
+<h2>All Notes</h2>
+<button onclick="renderNotes()">Refresh</button>
+<button onclick="clearNotes()">Clear All</button>
+<ul id="notesList"></ul>
+
+<h2>Storage Stats</h2>
+<button onclick="showStats()">Get Stats</button>
+<pre id="statsOutput"></pre>
+
+<h2>Console Output</h2>
+<pre id="logOutput" style="background:#111;color:#0f0;padding:12px;min-height:80px;font-size:13px;"></pre>
+
+<script>
+  const db = new window.BrowserDB.BrowserDB();
+  const notes = db.collection("test_notes");
+
+  function log(msg) {
+    const el = document.getElementById("logOutput");
+    el.textContent += msg + "\n";
+    console.log(msg);
+  }
+
+  function renderNotes() {
+    const all = notes.find();
+    const list = document.getElementById("notesList");
+    list.innerHTML = "";
+    if (all.length === 0) {
+      list.innerHTML = "<li><em>No notes found.</em></li>";
+      return;
+    }
+    all.forEach(n => {
+      const li = document.createElement("li");
+      li.textContent = `[${n._id.slice(0,8)}...] ${n.title}: ${n.content}`;
+      list.appendChild(li);
+    });
+    log("Refreshed: " + all.length + " note(s) found.");
+  }
+
+  function addNote() {
+    const title = document.getElementById("titleInput").value.trim();
+    const content = document.getElementById("contentInput").value.trim();
+    if (!title) { log("ERROR: Title is required."); return; }
+    const doc = notes.insertOne({ title, content });
+    log("Inserted: " + JSON.stringify(doc));
+    document.getElementById("titleInput").value = "";
+    document.getElementById("contentInput").value = "";
+    renderNotes();
+  }
+
+  function searchNote() {
+    const title = document.getElementById("searchInput").value.trim();
+    if (!title) { log("ERROR: Enter a title to search."); return; }
+    const result = notes.findOne({ title });
+    log("findOne({ title: '" + title + "' }) => " + JSON.stringify(result));
+  }
+
+  function clearNotes() {
+    notes.clear();
+    log("Cleared all notes.");
+    renderNotes();
+  }
+
+  async function showStats() {
+    const stats = await db.stats();
+    document.getElementById("statsOutput").textContent = JSON.stringify(stats, null, 2);
+    log("Stats fetched.");
+  }
+
+  renderNotes();
+  log("BrowserDB loaded successfully. window.BrowserDB = " + typeof window.BrowserDB);
+</script>
+
+</body>
+</html>
