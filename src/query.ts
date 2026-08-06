@@ -43,7 +43,8 @@ export class Query {
             if (key === "$and" || key === "$or") continue;
             if (!Object.prototype.hasOwnProperty.call(filter, key)) continue;
 
-            const condition = filter[key];
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const condition = (filter as any)[key];
             const docValue = doc[key as keyof WithId<T>] as unknown;
 
             if (Query.isQueryOperatorObject(condition)) {
