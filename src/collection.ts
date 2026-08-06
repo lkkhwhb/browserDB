@@ -114,22 +114,24 @@ export class Collection<T extends Document> {
         }
 
         if (options.projection && Object.keys(options.projection).length > 0) {
-            const keys = Object.keys(options.projection) as (keyof T)[];
-            const isInclusive = keys.some(k => options.projection![k] === 1);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const proj = options.projection as any;
+            const keys = Object.keys(proj) as (keyof T)[];
+            const isInclusive = keys.some(k => proj[k] === 1);
             
             result = result.map(doc => {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const newDoc: any = { _id: doc._id };
                 if (isInclusive) {
                     for (const key of keys) {
-                        if (options.projection![key] === 1 && key in doc) {
+                        if (proj[key] === 1 && key in doc) {
                             newDoc[key] = doc[key];
                         }
                     }
                 } else {
                     Object.assign(newDoc, doc);
                     for (const key of keys) {
-                        if (options.projection![key] === 0) {
+                        if (proj[key] === 0) {
                             delete newDoc[key];
                         }
                     }
