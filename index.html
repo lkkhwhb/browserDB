@@ -159,7 +159,7 @@
     <h1>BrowserDB</h1>
     <p class="tagline">A lightweight client-side database optimized for the localStorage backend. Zero config. TypeScript-first. CDN ready.</p>
     <div class="header-meta">
-        <span class="pill pill-outline">v1.0.0</span>
+        <span class="pill pill-outline">v1.0.6</span>
         <span class="pill pill-outline">TypeScript</span>
         <span class="pill pill-outline">~7 KB gzipped</span>
         <span class="pill pill-outline">Auto comression</span>
@@ -215,7 +215,7 @@
     <div class="card">
         <div class="card-icon">🔥</div>
         <h4>Auto-Compression</h4>
-        <p>Passes all documents through the native <code>CompressionStream</code>, yielding <strong>~15-20MB</strong> of space within the browser's 5MB localStorage limit!</p>
+        <p>Passes all documents through <code>CompressionStream</code> and packs them via a custom UTF-16 bit-packer, yielding <strong>~15-20MB</strong> of space within the browser's 5MB localStorage limit!</p>
     </div>
     <div class="card">
         <div class="card-icon">🖼️</div>
@@ -270,7 +270,7 @@
 <table class="dt">
     <thead><tr><th>Metric</th><th>Native <code>localStorage</code></th><th>BrowserDB</th></tr></thead>
     <tbody>
-        <tr><td><strong>Storage Size</strong></td><td>~115.40 KB</td><td><strong>~38.46 KB</strong> (3x smaller)</td></tr>
+        <tr><td><strong>Storage Size</strong></td><td>~115.40 KB</td><td><strong>~8.80 KB</strong> (13x smaller!)</td></tr>
         <tr><td><strong>Execution Time</strong></td><td>1.00 ms (Blocking)</td><td><strong>8.10 ms</strong> (Non-blocking)</td></tr>
     </tbody>
 </table>
@@ -664,7 +664,7 @@ users.<span class="fn">clear</span>();</code></pre>
 </article>
 
 <footer class="page-footer">
-    <p>BrowserDB v1.0.0 · Created by <a href="https://github.com/lkkhwhb">lkkhwhb</a> · <a href="https://github.com/lkkhwhb/browserDB">GitHub</a> · MIT License</p>
+    <p>BrowserDB v1.0.6 · Created by <a href="https://github.com/lkkhwhb">lkkhwhb</a> · <a href="https://github.com/lkkhwhb/browserDB">GitHub</a> · MIT License</p>
 </footer>
 
 <script>

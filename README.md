@@ -10,7 +10,7 @@ BrowserDB provides a clean, strongly typed API for storing and querying JSON doc
 ## Features
 
 * **⚡ In-Memory Caching (NEW!)**: Automatically caches documents in memory for instant read performance while perfectly synchronizing cross-tab updates.
-* **🔥 Auto-Compression (NEW!)**: Automatically compresses all documents through native `CompressionStream` (deflate), giving you **~15-20MB of usable space** while staying under the browser's 5MB limit!
+* **🔥 Auto-Compression (NEW!)**: Automatically compresses all documents through native `CompressionStream` (deflate), then packs the binary via a custom **UTF-16 bit-packer**, giving you **~15-20MB of usable space** while staying under the browser's 5MB limit!
 * **⏱️ TTL (Time To Live)**: Documents can automatically self-destruct after a specified time to keep your storage quota clean.
 * **🖼️ Image Optimization API**: The built-in `db.images()` API handles file uploads by auto-resizing and converting images to highly efficient WebP Base64 strings.
 * **Zero External Config**: Works out of the box in modern browsers, Vite (React TS / JS), Next.js, and vanilla applications.
@@ -169,7 +169,7 @@ We compared saving 1,000 JSON documents to native `localStorage` versus BrowserD
 
 | Metric | Native `localStorage` | BrowserDB |
 | --- | --- | --- |
-| **Storage Size** | ~115.40 KB | **~38.46 KB** (3x smaller) |
+| **Storage Size** | ~115.40 KB | **~8.80 KB** (13x smaller!) |
 | **Execution Time** | 1.00 ms (Blocking) | **8.10 ms** (Non-blocking) |
 
 > **The Tradeoff:** BrowserDB trades ~7ms of invisible background processing to compress your data, completely unblocking the main UI thread while giving you 3x more usable storage space!

@@ -13,6 +13,7 @@
  */
 
 import { DataCorruptionError, DatabaseError, QuotaExceededError } from "./errors";
+import { packToUTF16, unpackFromUTF16 } from "./utils/utf16Packer";
 
 export class Storage<T> {
     private readonly key: string;
@@ -33,18 +34,14 @@ export class Storage<T> {
     }
 
     private async compress(data: string): Promise<string> {
-        if (typeof CompressionStream === "undefined" || typeof btoa === "undefined") {
+        if (typeof CompressionStream === "undefined") {
             return data;
         }
         try {
             const stream = new Blob([data]).stream().pipeThrough(new CompressionStream("deflate"));
             const buffer = await new Response(stream).arrayBuffer();
-            let binary = "";
             const bytes = new Uint8Array(buffer);
-            for (let i = 0; i < bytes.length; i++) {
-                binary += String.fromCharCode(bytes[i]);
-            }
-            return "CMP_" + btoa(binary);
+            return "CMP_" + packToUTF16(bytes);
         } catch {
             return data;
         }
@@ -54,19 +51,15 @@ export class Storage<T> {
         if (!data.startsWith("CMP_")) {
             return data;
         }
-        if (typeof DecompressionStream === "undefined" || typeof atob === "undefined") {
+        if (typeof DecompressionStream === "undefined") {
             // Cannot decompress if environment lacks support, just return string
             // Ideally should not happen if write environment had it.
             throw new DataCorruptionError(this.collectionName);
         }
         try {
-            const base64 = data.substring(4);
-            const binary = atob(base64);
-            const bytes = new Uint8Array(binary.length);
-            for (let i = 0; i < binary.length; i++) {
-                bytes[i] = binary.charCodeAt(i);
-            }
-            const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate"));
+            const packed = data.substring(4);
+            const bytes = unpackFromUTF16(packed);
+            const stream = new Blob([bytes as any]).stream().pipeThrough(new DecompressionStream("deflate"));
             return await new Response(stream).text();
         } catch {
             throw new DataCorruptionError(this.collectionName);
