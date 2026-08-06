@@ -188,6 +188,11 @@
         <li><a href="#quick-start">Quick Start</a></li>
         <li><a href="#crud">CRUD Operations</a></li>
         <li><a href="#query-operators">Query Operators</a></li>
+        <li><a href="#advanced-features">Advanced Query & Updates</a></li>
+        <li><a href="#reactive-subscriptions">Reactive Subscriptions</a></li>
+        <li><a href="#transactions">Transactions</a></li>
+        <li><a href="#middleware-hooks">Middleware Hooks</a></li>
+        <li><a href="#schema-validation">Schema Validation</a></li>
         <li><a href="#database-api">Database API</a></li>
         <li><a href="#storage-statistics">Storage Statistics</a></li>
         <li><a href="#error-handling">Error Handling</a></li>
@@ -524,6 +529,125 @@ users.<span class="fn">clear</span>();</code></pre>
     <div class="code-header"><span class="code-lang">TypeScript</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
     <pre><code>users.<span class="fn">find</span>({
     age: { <span class="pr">$gte</span>: <span class="num">18</span>, <span class="pr">$lt</span>: <span class="num">65</span> }
+});</code></pre>
+</div>
+</section>
+
+<section id="advanced-features">
+<h2>Advanced Query & Updates</h2>
+<p>BrowserDB supports sorting, pagination, and projections inside query results, plus a range of field update operators.</p>
+
+<h3>Find Options (Sort, Limit, Skip, Projection)</h3>
+<div class="code-block">
+    <div class="code-header"><span class="code-lang">TypeScript</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+    <pre><code><span class="kw">const</span> results = <span class="kw">await</span> users.<span class="fn">find</span>(
+    { status: <span class="str">"active"</span> },
+    {
+        sort: { age: -1 },       <span class="cm">// Sort by age descending (1 for ascending)</span>
+        skip: <span class="num">10</span>,                <span class="cm">// Skip first 10 documents</span>
+        limit: <span class="num">10</span>,               <span class="cm">// Limit to 10 results (pagination)</span>
+        projection: { name: <span class="num">1</span> }  <span class="cm">// Return only name and _id fields</span>
+    }
+);</code></pre>
+</div>
+
+<h3>Update Operators</h3>
+<p>Use MongoDB-style operators inside <code>updateOne()</code> to mutate nested values or modify documents:</p>
+<table class="dt">
+    <thead><tr><th>Operator</th><th>Description</th></tr></thead>
+    <tbody>
+        <tr><td><code>$set</code></td><td>Sets the value of a field</td></tr>
+        <tr><td><code>$inc</code></td><td>Increments the value of a field by a specified amount</td></tr>
+        <tr><td><code>$unset</code></td><td>Deletes the specified field from a document</td></tr>
+        <tr><td><code>$push</code></td><td>Appends a specified value to an array</td></tr>
+        <tr><td><code>$pull</code></td><td>Removes all array elements matching a value or criteria</td></tr>
+    </tbody>
+</table>
+<div class="code-block">
+    <div class="code-header"><span class="code-lang">TypeScript</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+    <pre><code><span class="kw">await</span> users.<span class="fn">updateOne</span>(
+    { name: <span class="str">"Alice"</span> },
+    {
+        <span class="pr">$inc</span>: { loginCount: <span class="num">1</span> },
+        <span class="pr">$push</span>: { badges: <span class="str">"early-adopter"</span> },
+        <span class="pr">$unset</span>: { oldToken: <span class="num">1</span> }
+    }
+);</code></pre>
+</div>
+</section>
+
+<section id="reactive-subscriptions">
+<h2>Reactive Subscriptions</h2>
+<p>Subscribe to a filter and receive real-time updates whenever matching documents are inserted, updated, or deleted. Fired immediately with the initial result.</p>
+<div class="callout callout-info"><strong>Cross-Tab Synchronization:</strong> Updates triggered in one tab will automatically notify subscribers in all other open browser tabs in real-time.</div>
+<div class="code-block">
+    <div class="code-header"><span class="code-lang">TypeScript</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+    <pre><code><span class="kw">const</span> unsubscribe = users.<span class="fn">subscribe</span>({ status: <span class="str">"active"</span> }, (activeUsers) => {
+    console.<span class="fn">log</span>(<span class="str">"Real-time active users:"</span>, activeUsers);
+});
+
+<span class="cm">// Stop listening when component unmounts</span>
+<span class="fn">unsubscribe</span>();</code></pre>
+</div>
+</section>
+
+<section id="transactions">
+<h2>Transactions & Batch Writes</h2>
+<p>Group multiple database write operations (insert, update, delete) in-memory and flush them to <code>localStorage</code> in a single compressed write. This prevents intermediate UI rendering issues and maximizes performance.</p>
+<div class="code-block">
+    <div class="code-header"><span class="code-lang">TypeScript</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+    <pre><code><span class="kw">await</span> db.<span class="fn">transaction</span>(<span class="kw">async</span> () => {
+    <span class="kw">await</span> users.<span class="fn">insertOne</span>({ name: <span class="str">"Carol"</span>, age: <span class="num">34</span> });
+    <span class="kw">await</span> users.<span class="fn">updateOne</span>({ name: <span class="str">"Bob"</span> }, { <span class="pr">$set</span>: { age: <span class="num">35</span> } });
+    <span class="kw">await</span> users.<span class="fn">deleteOne</span>({ name: <span class="str">"Alice"</span> });
+}); <span class="cm">// All changes committed in one single storage write!</span></code></pre>
+</div>
+</section>
+
+<section id="middleware-hooks">
+<h2>Middleware Hooks</h2>
+<p>Register hooks to intercept collection mutations. Support asynchronous hooks to modify documents on-the-fly or dispatch secondary alerts.</p>
+<table class="dt">
+    <thead><tr><th>Hook Hook Name</th><th>Parameters</th><th>Fires</th></tr></thead>
+    <tbody>
+        <tr><td><code>beforeInsert</code></td><td><code>(doc: T) => T | Promise&lt;T&gt;</code></td><td>Before saving a new document</td></tr>
+        <tr><td><code>afterInsert</code></td><td><code>(doc: WithId&lt;T&gt;) => void | Promise&lt;void&gt;</code></td><td>Immediately after inserting</td></tr>
+        <tr><td><code>beforeUpdate</code></td><td><code>(doc: WithId&lt;T&gt;) => WithId&lt;T&gt; | Promise&lt;WithId&lt;T&gt;&gt;</code></td><td>Before modifying an existing doc</td></tr>
+        <tr><td><code>afterUpdate</code></td><td><code>(doc: WithId&lt;T&gt;) => void | Promise&lt;void&gt;</code></td><td>After update finishes</td></tr>
+        <tr><td><code>beforeDelete</code></td><td><code>(doc: WithId&lt;T&gt;) => void | Promise&lt;void&gt;</code></td><td>Before document is removed</td></tr>
+        <tr><td><code>afterDelete</code></td><td><code>(doc: WithId&lt;T&gt;) => void | Promise&lt;void&gt;</code></td><td>After deletion concludes</td></tr>
+    </tbody>
+</table>
+<div class="code-block">
+    <div class="code-header"><span class="code-lang">TypeScript</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+    <pre><code><span class="cm">// Automatically stamp document dates</span>
+users.<span class="fn">beforeInsert</span>(<span class="kw">async</span> (doc) => {
+    doc.createdAt = Date.<span class="fn">now</span>();
+    <span class="kw">return</span> doc;
+});
+
+<span class="cm">// Dispatch external log after changes</span>
+users.<span class="fn">afterUpdate</span>((doc) => {
+    console.<span class="fn">log</span>(<span class="str">`Document ${doc._id} updated.`</span>);
+});</code></pre>
+</div>
+</section>
+
+<section id="schema-validation">
+<h2>Schema Validation</h2>
+<p>Define a MongoDB-compliant <code>$jsonSchema</code> to enforce strict types, fields, and constraints at runtime. Violating the schema aborts the write and throws a <code>ValidationError</code>.</p>
+<div class="code-block">
+    <div class="code-header"><span class="code-lang">TypeScript</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+    <pre><code>users.<span class="fn">setValidator</span>({
+    <span class="pr">$jsonSchema</span>: {
+        bsonType: <span class="str">"object"</span>,
+        required: [<span class="str">"name"</span>, <span class="str">"age"</span>],
+        properties: {
+            name: { bsonType: <span class="str">"string"</span> },
+            age: { bsonType: <span class="str">"number"</span>, minimum: <span class="num">18</span> },
+            role: { enum: [<span class="str">"admin"</span>, <span class="str">"user"</span>] }
+        }
+    }
 });</code></pre>
 </div>
 </section>
