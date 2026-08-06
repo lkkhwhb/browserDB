@@ -106,7 +106,7 @@ Import directly into any HTML page using a CDN link (jsDelivr or unpkg). No bund
   <meta charset="UTF-8">
   <title>BrowserDB CDN Example</title>
   <!-- Load BrowserDB Standalone CDN Bundle from jsDelivr -->
-  <script src="https://cdn.jsdelivr.net/gh/lkkhwhb/browserDB@main/dist/browserdb.global.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@lkkhwhb/browserdb/dist/browserdb.global.js"></script>
 </head>
 <body>
   <h1>BrowserDB CDN Quickstart</h1>
@@ -126,7 +126,7 @@ Import directly into any HTML page using a CDN link (jsDelivr or unpkg). No bund
 #### unpkg CDN
 
 ```html
-<script src="https://cdn.jsdelivr.net/gh/lkkhwhb/browserDB@main/dist/browserdb.global.js"></script>
+<script src="https://unpkg.com/@lkkhwhb/browserdb/dist/browserdb.global.js"></script>
 ```
 
 ---
