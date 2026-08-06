@@ -4,11 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BrowserDB — Lightweight MongoDB-Inspired Browser Document Database</title>
-    <meta name="description" content="BrowserDB is a lightweight, MongoDB-inspired document database built on the browser's localStorage. Full TypeScript support, query operators, CDN ready.">
+    <meta name="description" content="BrowserDB is a lightweight client-side database optimized for the localStorage backend. Full TypeScript support, query operators, CDN ready.">
     <meta name="keywords" content="BrowserDB, localStorage, browser database, MongoDB, TypeScript, JavaScript, document database, CDN, npm, client-side storage">
     <meta name="author" content="lkkhwhb">
     <meta property="og:title" content="BrowserDB — Browser Document Database">
-    <meta property="og:description" content="A lightweight, MongoDB-inspired document database built on localStorage. Zero config, TypeScript-first, CDN ready.">
+    <meta property="og:description" content="A lightweight client-side database optimized for the localStorage backend. Zero config, TypeScript-first, CDN ready.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://github.com/lkkhwhb/browserDB">
     <link rel="canonical" href="https://github.com/lkkhwhb/browserDB">
@@ -157,7 +157,7 @@
 
 <header class="page-header">
     <h1>BrowserDB</h1>
-    <p class="tagline">A lightweight, MongoDB-inspired document database built entirely on the browser's <code>localStorage</code>. Zero config. TypeScript-first. CDN ready.</p>
+    <p class="tagline">A lightweight client-side database optimized for the localStorage backend. Zero config. TypeScript-first. CDN ready.</p>
     <div class="header-meta">
         <span class="pill pill-outline">v1.0.0</span>
         <span class="pill pill-outline">TypeScript</span>
@@ -206,6 +206,11 @@
         <div class="card-icon">⚡</div>
         <h4>In-Memory Caching</h4>
         <p>Intelligently caches queries for instant read performance. Automatically invalidates on cross-tab updates to ensure flawless sync.</p>
+    </div>
+    <div class="card">
+        <div class="card-icon">⏱️</div>
+        <h4>Time To Live (TTL)</h4>
+        <p>Set an expiration time on documents (e.g. caches or sessions). The engine automatically strips and cleans up expired data.</p>
     </div>
     <div class="card">
         <div class="card-icon">🔥</div>
@@ -392,8 +397,8 @@ users.<span class="fn">deleteOne</span>({ name: <span class="str">"John"</span> 
 
 <h3>insertOne</h3>
 <div class="method-box">
-    <div class="sig">collection.insertOne(document: T): WithId&lt;T&gt;</div>
-    <div class="desc">Inserts a single document. Returns the inserted document with its <code>_id</code>.</div>
+    <div class="sig">collection.insertOne(document: T, options?: InsertOptions): WithId&lt;T&gt;</div>
+    <div class="desc">Inserts a single document. Pass <code>ttlMs</code> in options to auto-expire. Returns the document with its <code>_id</code>.</div>
 </div>
 <div class="code-block">
     <div class="code-header"><span class="code-lang">TypeScript</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>

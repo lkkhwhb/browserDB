@@ -179,4 +179,24 @@ describe("BrowserDB Test Suite", () => {
         const corruptCol = db.collection("corrupt");
         await expect(corruptCol.find()).rejects.toThrow(DataCorruptionError);
     });
+
+    it("should filter out expired documents (TTL)", async () => {
+        const db = new BrowserDB();
+        const users = db.collection<{ name: string }>("users");
+
+        // Insert one doc that expires in 100ms, and one that doesn't expire
+        await users.insertOne({ name: "Alice" }, { ttlMs: 100 });
+        await users.insertOne({ name: "Bob" });
+
+        expect(await users.count()).toBe(2);
+        
+        // Wait 150ms for TTL to expire
+        await new Promise(resolve => setTimeout(resolve, 150));
+
+        // Alice should be gone, Bob should remain
+        const remaining = await users.find();
+        expect(remaining.length).toBe(1);
+        expect(remaining[0].name).toBe("Bob");
+        expect(await users.count()).toBe(1);
+    });
 });

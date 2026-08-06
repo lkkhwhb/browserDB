@@ -15,7 +15,7 @@
 import { DuplicateKeyError } from "./errors";
 import { Query } from "./query";
 import { Storage } from "./storage";
-import { Document, Filter, Update, WithId } from "./types";
+import { Document, Filter as TFilter, InsertOptions, Update, WithId } from "./types";
 import { uuid } from "./utils/uuid";
 
 export class Collection<T extends Document> {
@@ -38,12 +38,32 @@ export class Collection<T extends Document> {
         return JSON.parse(JSON.stringify(item));
     }
 
+    private async getValidData(triggerCleanup = true): Promise<WithId<T>[]> {
+        const data = await this.storage.read();
+        const now = Date.now();
+        let hasExpired = false;
+
+        const validData = data.filter(doc => {
+            if (doc.__expiresAt && doc.__expiresAt < now) {
+                hasExpired = true;
+                return false;
+            }
+            return true;
+        });
+
+        if (hasExpired && triggerCleanup) {
+            this.storage.write(validData).catch(() => {});
+        }
+
+        return validData;
+    }
+
     /**
      * Inserts a document into the collection.
      * Throws DuplicateKeyError if the user-provided _id already exists.
      */
-    async insertOne(document: T): Promise<WithId<T>> {
-        const data = await this.storage.read();
+    async insertOne(document: T, options?: InsertOptions): Promise<WithId<T>> {
+        const data = await this.getValidData(false);
         const cloned = this.clone(document) as Record<string, unknown>;
         const newId = typeof cloned._id === "string" ? cloned._id : uuid();
 
@@ -52,6 +72,10 @@ export class Collection<T extends Document> {
         }
 
         const newDoc = { ...cloned, _id: newId } as WithId<T>;
+        
+        if (options?.ttlMs) {
+            newDoc.__expiresAt = Date.now() + options.ttlMs;
+        }
 
         data.push(newDoc);
         await this.storage.write(data);
@@ -63,10 +87,11 @@ export class Collection<T extends Document> {
      * Inserts multiple documents into the collection.
      * Throws DuplicateKeyError if any user-provided _id already exists or duplicates within the batch.
      */
-    async insertMany(documents: T[]): Promise<WithId<T>[]> {
-        const data = await this.storage.read();
+    async insertMany(documents: T[], options?: InsertOptions): Promise<WithId<T>[]> {
+        const data = await this.getValidData(false);
         const newDocs: WithId<T>[] = [];
         const seenIds = new Set<string>();
+        const now = Date.now();
 
         for (const doc of documents) {
             const cloned = this.clone(doc) as Record<string, unknown>;
@@ -77,7 +102,11 @@ export class Collection<T extends Document> {
             }
 
             seenIds.add(newId);
-            newDocs.push({ ...cloned, _id: newId } as WithId<T>);
+            const newDoc = { ...cloned, _id: newId } as WithId<T>;
+            if (options?.ttlMs) {
+                newDoc.__expiresAt = now + options.ttlMs;
+            }
+            newDocs.push(newDoc);
         }
 
         data.push(...newDocs);
@@ -86,19 +115,19 @@ export class Collection<T extends Document> {
         return newDocs;
     }
 
-    async find(filter: Filter<T> = {}): Promise<WithId<T>[]> {
-        const data = await this.storage.read();
+    async find(filter: TFilter<T> = {}): Promise<WithId<T>[]> {
+        const data = await this.getValidData(true);
         return this.clone(data.filter(doc => Query.matches(doc, filter)));
     }
 
-    async findOne(filter: Filter<T>): Promise<WithId<T> | null> {
-        const data = await this.storage.read();
+    async findOne(filter: TFilter<T>): Promise<WithId<T> | null> {
+        const data = await this.getValidData(true);
         const result = data.find(doc => Query.matches(doc, filter));
         return result ? this.clone(result) : null;
     }
 
-    async updateOne(filter: Filter<T>, update: Update<T>): Promise<{ matched: boolean; modified: boolean }> {
-        const data = await this.storage.read();
+    async updateOne(filter: TFilter<T>, update: Update<T>): Promise<{ matched: boolean; modified: boolean }> {
+        const data = await this.getValidData(false);
         const index = data.findIndex(doc => Query.matches(doc, filter));
 
         if (index === -1) {
@@ -117,8 +146,8 @@ export class Collection<T extends Document> {
         return { matched: true, modified: false };
     }
 
-    async deleteOne(filter: Filter<T>): Promise<{ deletedCount: number }> {
-        const data = await this.storage.read();
+    async deleteOne(filter: TFilter<T>): Promise<{ deletedCount: number }> {
+        const data = await this.getValidData(false);
         const index = data.findIndex(doc => Query.matches(doc, filter));
 
         if (index === -1) {
@@ -132,7 +161,7 @@ export class Collection<T extends Document> {
     }
 
     async count(): Promise<number> {
-        const data = await this.storage.read();
+        const data = await this.getValidData(true);
         return data.length;
     }
 

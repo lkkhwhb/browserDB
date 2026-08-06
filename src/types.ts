@@ -13,7 +13,11 @@
  */
 
 export type Document = Record<string, unknown>;
-export type WithId<T> = T & { _id: string };
+export type WithId<T> = T & { _id: string; __expiresAt?: number };
+
+export interface InsertOptions {
+    ttlMs?: number;
+}
 
 export type QueryOperators<T> = {
     $ne?: T;

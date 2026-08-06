@@ -1,7 +1,7 @@
 # BrowserDB
 (@lkkhwhb/browserdb)
 
-> A lightweight, MongoDB-inspired document database built on top of the browser's `localStorage`.
+> A lightweight client-side database optimized for the localStorage backend.
 
 BrowserDB provides a clean, strongly typed API for storing and querying JSON documents without dealing directly with `localStorage` or manual serialization.
 
@@ -11,6 +11,7 @@ BrowserDB provides a clean, strongly typed API for storing and querying JSON doc
 
 * **⚡ In-Memory Caching (NEW!)**: Automatically caches documents in memory for instant read performance while perfectly synchronizing cross-tab updates.
 * **🔥 Auto-Compression (NEW!)**: Automatically compresses all documents through native `CompressionStream` (deflate), giving you **~15-20MB of usable space** while staying under the browser's 5MB limit!
+* **⏱️ TTL (Time To Live)**: Documents can automatically self-destruct after a specified time to keep your storage quota clean.
 * **🖼️ Image Optimization API**: The built-in `db.images()` API handles file uploads by auto-resizing and converting images to highly efficient WebP Base64 strings.
 * **Zero External Config**: Works out of the box in modern browsers, Vite (React TS / JS), Next.js, and vanilla applications.
 * **Direct CDN Support**: Import via standard HTML `<script>` tags (`window.BrowserDB`).
@@ -220,6 +221,17 @@ await users.insertOne({
     name: "Alice",
     age: 20
 });
+```
+
+### Insert with TTL (Time To Live)
+
+You can pass `ttlMs` to automatically expire a document. BrowserDB self-cleans; expired documents are silently stripped from queries and erased from disk.
+
+```ts
+await users.insertOne(
+    { name: "Session_Token", val: "xyz" },
+    { ttlMs: 1000 * 60 * 60 } // Automatically expires in 1 hour
+);
 ```
 
 ### Insert Many
