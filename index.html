@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BrowserDB — Lightweight MongoDB-Inspired Browser Document Database</title>
+    <meta name="description" content="BrowserDB is a lightweight, dependency-free, MongoDB-inspired document database built on the browser's localStorage. Full TypeScript support, query operators, CDN ready.">
+    <meta name="keywords" content="BrowserDB, localStorage, browser database, MongoDB, TypeScript, JavaScript, document database, CDN, npm, client-side storage">
+    <meta name="author" content="lkkhwhb">
+    <meta property="og:title" content="BrowserDB — Browser Document Database">
+    <meta property="og:description" content="A lightweight, MongoDB-inspired document database built on localStorage. Zero config, TypeScript-first, CDN ready.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://github.com/lkkhwhb/browserDB">
+    <link rel="canonical" href="https://github.com/lkkhwhb/browserDB">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+        :root{
+            --bg:#fdfdfe;--bg-alt:#f5f6fa;
+            --bg-code:#0d1117; /* GitHub Dark */
+            --bg-code-header:#161b22;
+            --border-code:#30363d;
+            --border:#e2e4ee;--border-strong:#cdd0de;
+            --text:#2c2e3a;--text-dim:#6b6e82;--text-link:#4f6df5;--text-heading:#1a1c28;
+            --accent:#4f6df5;--accent-light:#eef1ff;
+            --green-tag:#dcfce7;--green-text:#166534;
+            --red-tag:#fee2e2;--red-text:#991b1b;
+            --font:'Outfit',system-ui,-apple-system,sans-serif;
+            --mono:'JetBrains Mono','Fira Code','Consolas',monospace;
+            --max:880px;--radius:10px;
+
+            /* GitHub Dark Syntax Highlighting */
+            --syn-keyword:#ff7b72;
+            --syn-fn:#d2a8ff;
+            --syn-str:#a5d6ff;
+            --syn-num:#79c0ff;
+            --syn-comment:#8b949e;
+            --syn-op:#ff7b72;
+            --syn-type:#ff7b72;
+            --syn-prop:#79c0ff;
+            --syn-text:#c9d1d9;
+        }
+        html{scroll-behavior:smooth;font-size:16px}
+        body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:1.75;-webkit-font-smoothing:antialiased}
+        a{color:var(--text-link);text-decoration:none;transition:color .15s}
+        a:hover{color:#3a56d4;text-decoration:underline}
+        ::selection{background:var(--accent-light);color:var(--accent)}
+
+        /* Nice Scrollbar */
+        ::-webkit-scrollbar { width: 10px; height: 10px; }
+        ::-webkit-scrollbar-track { background: var(--bg-alt); }
+        ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 5px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+        .page{max-width:var(--max);margin:0 auto;padding:48px 28px 96px}
+
+        header.page-header{margin-bottom:40px}
+        header.page-header h1{font-size:2.8rem;font-weight:800;color:var(--text-heading);letter-spacing:-1.5px;line-height:1.15}
+        header.page-header .tagline{font-size:1.1rem;color:var(--text-dim);margin-top:8px;max-width:640px;line-height:1.7}
+        .header-meta{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap;align-items:center}
+        .pill{font-size:.75rem;padding:4px 14px;border-radius:99px;font-weight:500}
+        .pill-outline{border:1px solid var(--border-strong);color:var(--text-dim);background:var(--bg)}
+        .pill-accent{background:var(--accent);color:#fff;border:none}
+        .header-links{display:flex;gap:10px;margin-top:16px}
+        .header-links a{display:inline-flex;align-items:center;gap:6px;padding:8px 20px;border-radius:var(--radius);font-size:.875rem;font-weight:600;transition:all .2s}
+        .btn-fill{background:var(--accent);color:#fff}
+        .btn-fill:hover{background:#3a56d4;text-decoration:none;color:#fff}
+        .btn-ghost{border:1px solid var(--border-strong);color:var(--text)}
+        .btn-ghost:hover{border-color:var(--accent);color:var(--accent);text-decoration:none}
+
+        .install-bar{margin-top:20px;position:relative;display:inline-block}
+        .install-bar code{display:block;background:var(--bg-code);border:1px solid var(--border-code);color:var(--syn-text);font-family:var(--mono);font-size:.875rem;padding:12px 52px 12px 18px;border-radius:var(--radius);cursor:pointer;transition:opacity .15s}
+        .install-bar code:hover{opacity:.85}
+        .install-bar .copy-btn{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:#21262d;border:1px solid var(--border-code);color:var(--syn-text);font-size:.65rem;padding:3px 8px;border-radius:4px;cursor:pointer;font-family:var(--font);transition:all .15s}
+        .install-bar .copy-btn:hover{border-color:#8b949e;color:#fff}
+        .install-bar .copy-btn.copied{color:#3fb950;border-color:#3fb950}
+
+        .toc{background:var(--bg-alt);border:1px solid var(--border);border-radius:var(--radius);padding:22px 28px;margin:36px 0}
+        .toc-title{font-weight:700;font-size:1rem;color:var(--text-heading);margin-bottom:12px}
+        .toc ol{padding-left:20px;margin:0;columns:2;column-gap:32px}
+        .toc li{font-size:.875rem;line-height:2.1;break-inside:avoid}
+        .toc li a{color:var(--text-link)}
+        @media(max-width:600px){.toc ol{columns:1}}
+
+        h2{font-size:1.7rem;font-weight:700;color:var(--text-heading);letter-spacing:-0.5px;margin:48px 0 18px;padding-bottom:10px;border-bottom:2px solid var(--border)}
+        h3{font-size:1.2rem;font-weight:600;color:var(--text-heading);margin:32px 0 12px}
+        h4{font-size:1rem;font-weight:600;color:var(--text-heading);margin:22px 0 8px}
+        p{margin-bottom:14px}
+        ul,ol{margin:0 0 14px 22px}
+        li{margin-bottom:4px}
+
+        .code-block{position:relative;margin:14px 0 22px;border-radius:var(--radius);overflow:hidden;background:var(--bg-code);border:1px solid var(--border-code)}
+        .code-block .code-header{display:flex;justify-content:space-between;align-items:center;padding:6px 14px;background:var(--bg-code-header);border-bottom:1px solid var(--border-code)}
+        .code-block .code-lang{font-family:var(--mono);font-size:.65rem;color:#8b949e;text-transform:uppercase;letter-spacing:1px;font-weight:700}
+        .code-block .copy-btn{background:#21262d;border:1px solid var(--border-code);color:#c9d1d9;font-size:.65rem;padding:2px 10px;border-radius:4px;cursor:pointer;font-family:var(--font);transition:all .15s}
+        .code-block .copy-btn:hover{background:#30363d;border-color:#8b949e;color:#fff}
+        .code-block .copy-btn.copied{color:#3fb950;border-color:#3fb950}
+        
+        .code-block pre{
+            margin:0;border:none;border-radius:0;background:transparent;padding:16px 20px;
+            white-space: pre-wrap; word-wrap: break-word; /* Shrink to fit, switch to newline */
+            line-height:1.3;
+        }
+        .code-block pre code{font-family:var(--mono);font-size:.85rem;color:var(--syn-text)}
+
+        code:not(pre code){font-family:var(--mono);font-size:.84em;background:var(--bg-alt);padding:2px 6px;border-radius:4px;border:1px solid var(--border);color:#7048e8}
+
+        table.dt{width:100%;border-collapse:collapse;margin:14px 0 22px;font-size:.875rem;border-radius:var(--radius);overflow:hidden;border:1px solid var(--border)}
+        table.dt th{text-align:left;padding:10px 14px;background:var(--bg-alt);font-weight:600;color:var(--text-heading);border-bottom:1px solid var(--border)}
+        table.dt td{padding:10px 14px;border-bottom:1px solid var(--border)}
+        table.dt tr:last-child td{border-bottom:none}
+        table.dt tr:hover td{background:var(--accent-light)}
+
+        .method-box{background:var(--bg-alt);border:1px solid var(--border);border-radius:var(--radius);padding:14px 18px;margin:10px 0 16px}
+        .method-box .sig{font-family:var(--mono);font-size:.84rem;color:var(--accent);font-weight:500}
+        .method-box .desc{font-size:.875rem;color:var(--text-dim);margin-top:4px}
+
+        .callout{padding:14px 20px;margin:16px 0;border-radius:var(--radius);font-size:.875rem;border-left:4px solid}
+        .callout-info{background:#eef3ff;border-left-color:var(--accent);color:#2a3a7a}
+        .callout-warn{background:#fef9ec;border-left-color:#e8a317;color:#7a5a0a}
+        .callout-err{background:#fef2f2;border-left-color:#e53e3e;color:#7a1a1a}
+
+        .compat-grid{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0}
+        .compat-item{font-size:.8rem;padding:6px 14px;border-radius:var(--radius);font-weight:500}
+        .compat-yes{background:var(--green-tag);color:var(--green-text)}
+        .compat-no{background:var(--red-tag);color:var(--red-text)}
+
+        .card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px;margin:20px 0}
+        .card{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:22px;transition:border-color .2s,box-shadow .2s}
+        .card:hover{border-color:var(--accent);box-shadow:0 2px 16px rgba(79,109,245,0.08)}
+        .card .card-icon{font-size:1.5rem;margin-bottom:8px}
+        .card h4{margin:0 0 4px;font-size:.95rem}
+        .card p{font-size:.84rem;color:var(--text-dim);margin:0;line-height:1.6}
+
+        .see-also{background:var(--bg-alt);border:1px solid var(--border);border-radius:var(--radius);padding:18px 22px;margin:28px 0}
+        .see-also h4{margin:0 0 8px;font-size:.95rem;font-weight:600}
+        .see-also ul{margin:0;padding-left:20px}
+        .see-also li{font-size:.85rem;line-height:2}
+
+        footer.page-footer{border-top:1px solid var(--border);margin-top:56px;padding-top:20px;font-size:.8rem;color:var(--text-dim);text-align:center}
+
+        @media(max-width:600px){
+            .page{padding:28px 16px 60px}
+            header.page-header h1{font-size:2rem}
+            h2{font-size:1.4rem}
+            .card-grid{grid-template-columns:1fr}
+        }
+
+        .kw{color:var(--syn-keyword)}.fn{color:var(--syn-fn)}.str{color:var(--syn-str)}.num{color:var(--syn-num)}.cm{color:var(--syn-comment)}.op{color:var(--syn-op)}.ty{color:var(--syn-type)}.pr{color:var(--syn-prop)}
+    </style>
+</head>
+<body>
+
+<article class="page">
+
+<header class="page-header">
+    <h1>BrowserDB</h1>
+    <p class="tagline">A lightweight, MongoDB-inspired document database built entirely on the browser's <code>localStorage</code>. Zero config. TypeScript-first. CDN ready.</p>
+    <div class="header-meta">
+        <span class="pill pill-outline">v1.0.0</span>
+        <span class="pill pill-outline">TypeScript</span>
+        <span class="pill pill-outline">~7 KB gzipped</span>
+        <span class="pill pill-outline">MIT License</span>
+        <span class="pill pill-accent">@lkkhwhb/browserdb</span>
+    </div>
+    <div class="install-bar">
+        <code id="installCmd">npm install @lkkhwhb/browserdb</code>
+        <button class="copy-btn" onclick="copyText('installCmd',this)">Copy</button>
+    </div>
+    <div class="header-links">
+        <a class="btn-fill" href="https://github.com/lkkhwhb/browserDB">GitHub Repository</a>
+        <a class="btn-ghost" href="#install-cdn">CDN Script Tag</a>
+    </div>
+</header>
+
+<nav class="toc" aria-label="Table of contents">
+    <div class="toc-title">Table of Contents</div>
+    <ol>
+        <li><a href="#why-browserdb">Why BrowserDB?</a></li>
+        <li><a href="#performance">Performance</a></li>
+        <li><a href="#comparison">Comparison with IndexedDB</a></li>
+        <li><a href="#installation">Installation</a></li>
+        <li><a href="#quick-start">Quick Start</a></li>
+        <li><a href="#crud">CRUD Operations</a></li>
+        <li><a href="#query-operators">Query Operators</a></li>
+        <li><a href="#database-api">Database API</a></li>
+        <li><a href="#storage-statistics">Storage Statistics</a></li>
+        <li><a href="#error-handling">Error Handling</a></li>
+        <li><a href="#react-integration">React Integration</a></li>
+        <li><a href="#architecture">Architecture</a></li>
+        <li><a href="#browser-compatibility">Browser Compatibility</a></li>
+        <li><a href="#limitations">Limitations</a></li>
+        <li><a href="#license">License</a></li>
+    </ol>
+</nav>
+
+<section id="why-browserdb">
+<h2>Why BrowserDB?</h2>
+<p>The browser's native <code>localStorage</code> is a flat key-value string store. BrowserDB transforms it into a structured document database with the developer experience of MongoDB.</p>
+<div class="card-grid">
+    <div class="card">
+        <div class="card-icon">⚡</div>
+        <h4>Zero Dependencies</h4>
+        <p>Ships as a single self-contained bundle. The only runtime dependency is the <code>uuid</code> package for secure ID generation.</p>
+    </div>
+    <div class="card">
+        <div class="card-icon">🔒</div>
+        <h4>Type Safe</h4>
+        <p>Written in TypeScript with full generic support. Collections are strongly typed and the compiler catches mistakes at build time.</p>
+    </div>
+    <div class="card">
+        <div class="card-icon">🧠</div>
+        <h4>Familiar API</h4>
+        <p>If you know MongoDB, you already know BrowserDB. Same mental model: <code>insertOne</code>, <code>find</code>, <code>updateOne</code>, <code>deleteOne</code>.</p>
+    </div>
+    <div class="card">
+        <div class="card-icon">📦</div>
+        <h4>Tiny Footprint</h4>
+        <p>Under 7 KB gzipped. Loads instantly via CDN script tag or bundled into Vite / React / Next.js projects.</p>
+    </div>
+    <div class="card">
+        <div class="card-icon">🛡️</div>
+        <h4>Secure IDs</h4>
+        <p>Generates cryptographically secure UUID v4 identifiers using the official <code>uuid</code> library with <code>crypto.randomUUID</code> fallback.</p>
+    </div>
+    <div class="card">
+        <div class="card-icon">🔧</div>
+        <h4>Zero Configuration</h4>
+        <p>No database setup, no migrations, no server. Instantiate and start inserting documents immediately in any browser.</p>
+    </div>
+</div>
+</section>
+
+<section id="performance">
+<h2>Performance</h2>
+<p>BrowserDB is highly optimized for synchronous read and write operations. Because <code>localStorage</code> operations are blocking, performance is critical to prevent UI stutter.</p>
+<ul>
+    <li><strong>Fast Reads:</strong> Methods like <code>findOne</code> and <code>find</code> are optimized to iterate efficiently. Once documents are retrieved, filtering logic executes at native JavaScript speeds.</li>
+    <li><strong>Batched Writes:</strong> The <code>insertMany</code> method validates and serializes documents simultaneously before writing, minimizing consecutive I/O bottlenecks.</li>
+    <li><strong>Lightweight:</strong> Without the overhead of asynchronous events, Promises, or structured cloning found in IndexedDB, small to medium operations execute in less than a millisecond.</li>
+</ul>
+</section>
+
+<section id="comparison">
+<h2>Comparison with IndexedDB</h2>
+<p>BrowserDB is <strong>not meant to compete with IndexedDB</strong>. Instead, it is designed to make <code>localStorage</code> easier to maintain and query for small apps, drafts, and user settings. While BrowserDB provides an incredibly fast and simple developer experience, it solves a completely different problem than IndexedDB.</p>
+<table class="dt">
+    <thead><tr><th>Feature</th><th>BrowserDB (localStorage)</th><th>IndexedDB</th></tr></thead>
+    <tbody>
+        <tr><td><strong>API Style</strong></td><td>Synchronous, Simple, MongoDB-like</td><td>Asynchronous, Complex, Event-driven</td></tr>
+        <tr><td><strong>Storage Limit</strong></td><td>~5 MB per origin</td><td>Virtually Unlimited (GBs)</td></tr>
+        <tr><td><strong>Performance</strong></td><td>Instant for small datasets; can block main thread on huge reads</td><td>Non-blocking; requires callback/Promise overhead</td></tr>
+        <tr><td><strong>Data Types</strong></td><td>JSON stringifiable (loses Dates, Maps, Sets)</td><td>Structured Clone (preserves Dates, Maps, ArrayBuffers)</td></tr>
+        <tr><td><strong>Best For</strong></td><td>User settings, drafts, offline caching, small apps</td><td>Large files, massive datasets, complex relational queries</td></tr>
+    </tbody>
+</table>
+</section>
+
+<section id="installation">
+<h2>Installation</h2>
+
+<h3 id="install-npm">NPM / Bundler</h3>
+<p>Install via npm for use in Vite, React, Next.js, or any bundler environment:</p>
+<div class="code-block">
+    <div class="code-header"><span class="code-lang">Terminal</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+    <pre><code>npm install @lkkhwhb/browserdb</code></pre>
+</div>
+<p>Then import in TypeScript or JavaScript:</p>
+<div class="code-block">
+    <div class="code-header"><span class="code-lang">TypeScript</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+    <pre><code><span class="kw">import</span> { BrowserDB } <span class="kw">from</span> <span class="str">"@lkkhwhb/browserdb"</span>;</code></pre>
+</div>
+
+<h3 id="install-cdn">CDN Script Tag</h3>
+<p>Load the standalone bundle directly in any HTML page. No bundler or build step required:</p>
+<div class="code-block">
+    <div class="code-header"><span class="code-lang">HTML</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+    <pre><code><span class="op">&lt;</span><span class="pr">script</span> <span class="ty">src</span><span class="op">=</span><span class="str">"https://cdn.jsdelivr.net/gh/lkkhwhb/browserDB@main/dist/browserdb.global.js"</span><span class="op">&gt;&lt;/</span><span class="pr">script</span><span class="op">&gt;</span>
+
+<span class="op">&lt;</span><span class="pr">script</span><span class="op">&gt;</span>
+    <span class="kw">const</span> db = <span class="kw">new</span> window.BrowserDB.<span class="fn">BrowserDB</span>();
+<span class="op">&lt;/</span><span class="pr">script</span><span class="op">&gt;</span></code></pre>
+</div>
+<p>The CDN bundle is self-contained (all dependencies including <code>uuid</code> are bundled) and exposes <code>window.BrowserDB</code> globally.</p>
+</section>
+
+<section id="quick-start">
+<h2>Quick Start</h2>
+<div class="code-block">
+    <div class="code-header"><span class="code-lang">TypeScript</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+    <pre><code><span class="kw">import</span> { BrowserDB } <span class="kw">from</span> <span class="str">"@lkkhwhb/browserdb"</span>;
+
+<span class="kw">type</span> <span class="ty">User</span> = {
+    name: <span class="ty">string</span>;
+    age: <span class="ty">number</span>;
+};
+
+<span class="kw">const</span> db = <span class="kw">new</span> <span class="fn">BrowserDB</span>();
+<span class="kw">const</span> users = db.<span class="fn">collection</span>&lt;<span class="ty">User</span>&gt;(<span class="str">"users"</span>);
+
+<span class="cm">// Insert</span>
+<span class="kw">const</span> doc = users.<span class="fn">insertOne</span>({ name: <span class="str">"John"</span>, age: <span class="num">25</span> });
+
+<span class="cm">// Query</span>
+<span class="kw">const</span> result = users.<span class="fn">findOne</span>({ name: <span class="str">"John"</span> });
+<span class="cm">// → { _id: "a1b2c3d4-...", name: "John", age: 25 }</span>
+
+<span class="cm">// Update</span>
+users.<span class="fn">updateOne</span>({ name: <span class="str">"John"</span> }, { <span class="pr">$set</span>: { age: <span class="num">26</span> } });
+
+<span class="cm">// Delete</span>
+users.<span class="fn">deleteOne</span>({ name: <span class="str">"John"</span> });</code></pre>
+</div>
+<p>Collections are created automatically on first use. Documents without an <code>_id</code> receive a cryptographically secure UUID v4. Custom IDs are preserved; duplicates throw a <code>DuplicateKeyError</code>.</p>
+</section>
+
+<section id="crud">
+<h2>CRUD Operations</h2>
+
+<h3>insertOne</h3>
+<div class="method-box">
+    <div class="sig">collection.insertOne(document: T): WithId&lt;T&gt;</div>
+    <div class="desc">Inserts a single document. Returns the inserted document with its <code>_id</code>.</div>
+</div>
+<div class="code-block">
+    <div class="code-header"><span class="code-lang">TypeScript</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+    <pre><code><span class="kw">const</span> doc = users.<span class="fn">insertOne</span>({ name: <span class="str">"Alice"</span>, age: <span class="num">20</span> });
+console.<span class="fn">log</span>(doc._id); <span class="cm">// auto-generated UUID</span></code></pre>
+</div>
+
+<h3>insertMany</h3>
+<div class="method-box">
+    <div class="sig">collection.insertMany(documents: T[]): WithId&lt;T&gt;[]</div>
+    <div class="desc">Inserts multiple documents. Validates the entire batch for duplicate IDs before writing.</div>
+</div>
+<div class="code-block">
+    <div class="code-header"><span class="code-lang">TypeScript</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+    <pre><code>users.<span class="fn">insertMany</span>([
+    { name: <span class="str">"Alice"</span>, age: <span class="num">20</span> },
+    { name: <span class="str">"Bob"</span>, age: <span class="num">24</span> }
+]);</code></pre>
+</div>
+
+<h3>find</h3>
+<div class="method-box">
+    <div class="sig">collection.find(filter?: Filter&lt;T&gt;): WithId&lt;T&gt;[]</div>
+    <div class="desc">Returns all documents matching the filter. Omit to return every document.</div>
+</div>
+<div class="code-block">
+    <div class="code-header"><span class="code-lang">TypeScript</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+    <pre><code><span class="kw">const</span> all = users.<span class="fn">find</span>();
+<span class="kw">const</span> adults = users.<span class="fn">find</span>({ age: { <span class="pr">$gte</span>: <span class="num">18</span> } });</code></pre>
+</div>
+
+<h3>findOne</h3>
+<div class="method-box">
+    <div class="sig">collection.findOne(filter: Filter&lt;T&gt;): WithId&lt;T&gt; | null</div>
+    <div class="desc">Returns the first matching document, or <code>null</code>.</div>
+</div>
+<div class="code-block">
+    <div class="code-header"><span class="code-lang">TypeScript</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+    <pre><code><span class="kw">const</span> user = users.<span class="fn">findOne</span>({ name: <span class="str">"Alice"</span> });</code></pre>
+</div>
+
+<h3>updateOne</h3>
+<div class="method-box">
+    <div class="sig">collection.updateOne(filter, update): { matched: boolean; modified: boolean }</div>
+    <div class="desc">Updates the first matched document using <code>$set</code>.</div>
+</div>
+<div class="code-block">
+    <div class="code-header"><span class="code-lang">TypeScript</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+    <pre><code>users.<span class="fn">updateOne</span>(
+    { name: <span class="str">"Alice"</span> },
+    { <span class="pr">$set</span>: { age: <span class="num">21</span> } }
+);</code></pre>
+</div>
+<div class="callout callout-info"><strong>Note:</strong> The <code>_id</code> field is immutable. Attempts to change it via <code>$set</code> are silently ignored.</div>
+
+<h3>deleteOne</h3>
+<div class="method-box">
+    <div class="sig">collection.deleteOne(filter: Filter&lt;T&gt;): { deletedCount: number }</div>
+    <div class="desc">Deletes the first matching document.</div>
+</div>
+<div class="code-block">
+    <div class="code-header"><span class="code-lang">TypeScript</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+    <pre><code>users.<span class="fn">deleteOne</span>({ name: <span class="str">"Alice"</span> });</code></pre>
+</div>
+
+<h3 id="count-clear">count &amp; clear</h3>
+<div class="code-block">
+    <div class="code-header"><span class="code-lang">TypeScript</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+    <pre><code><span class="kw">const</span> total = users.<span class="fn">count</span>();
+users.<span class="fn">clear</span>();</code></pre>
+</div>
+</section>
+
+<section id="query-operators">
+<h2>Query Operators</h2>
+<p>Use MongoDB-style comparison operators inside filter objects. Operators enforce strict type checking to prevent coercion bugs.</p>
+<table class="dt">
+    <thead><tr><th>Operator</th><th>Description</th><th>Supported Types</th></tr></thead>
+    <tbody>
+        <tr><td><code>$ne</code></td><td>Not equal</td><td>All primitives</td></tr>
+        <tr><td><code>$gt</code></td><td>Greater than</td><td>Number, String</td></tr>
+        <tr><td><code>$gte</code></td><td>Greater than or equal</td><td>Number, String</td></tr>
+        <tr><td><code>$lt</code></td><td>Less than</td><td>Number, String</td></tr>
+        <tr><td><code>$lte</code></td><td>Less than or equal</td><td>Number, String</td></tr>
+    </tbody>
+</table>
+<div class="code-block">
+    <div class="code-header"><span class="code-lang">TypeScript</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+    <pre><code>users.<span class="fn">find</span>({
+    age: { <span class="pr">$gte</span>: <span class="num">18</span>, <span class="pr">$lt</span>: <span class="num">65</span> }
+});</code></pre>
+</div>
+</section>
+
+<section id="database-api">
+<h2>Database API</h2>
+<div class="method-box"><div class="sig">db.collection&lt;T&gt;(name: string): Collection&lt;T&gt;</div><div class="desc">Gets or creates a typed collection. Created on first use.</div></div>
+<div class="method-box"><div class="sig">db.has(name: string): boolean</div><div class="desc">Checks if a collection exists in localStorage.</div></div>
+<div class="method-box"><div class="sig">db.dropCollection(name: string): void</div><div class="desc">Permanently removes a collection and all its documents.</div></div>
+<div class="method-box"><div class="sig">db.clear(): void</div><div class="desc">Removes all BrowserDB collections from localStorage.</div></div>
+<div class="method-box"><div class="sig">db.stats(): Promise&lt;DatabaseStats&gt;</div><div class="desc">Returns storage usage metrics including bytes, quota, collection count, and document count.</div></div>
+</section>
+
+<section id="storage-statistics">
+<h2>Storage Statistics</h2>
+<div class="code-block">
+    <div class="code-header"><span class="code-lang">TypeScript</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+    <pre><code><span class="kw">const</span> stats = <span class="kw">await</span> db.<span class="fn">stats</span>();
+<span class="cm">// {
+//   usedBytes: 1024,
+//   usedKB: "1.00 KB",
+//   usedMB: "0.00 MB",
+//   quotaBytes: 5242880,
+//   availableBytes: 5241856,
+//   percentUsed: "0.02%",
+//   collections: 2,
+//   documents: 15
+// }</span></code></pre>
+</div>
+<p>BrowserDB calculates exact byte sizes for its own <code>browserdb_</code>-prefixed keys using <code>TextEncoder</code>, and queries <code>navigator.storage.estimate()</code> for origin-wide quota information when available.</p>
+</section>
+
+<section id="error-handling">
+<h2>Error Handling</h2>
+<table class="dt">
+    <thead><tr><th>Error Class</th><th>Thrown When</th></tr></thead>
+    <tbody>
+        <tr><td><code>DatabaseError</code></td><td>No browser environment or general storage failure</td></tr>
+        <tr><td><code>QuotaExceededError</code></td><td>localStorage quota exceeded (~5 MB)</td></tr>
+        <tr><td><code>DataCorruptionError</code></td><td>Stored JSON cannot be parsed</td></tr>
+        <tr><td><code>DuplicateKeyError</code></td><td>Inserting a document with an existing <code>_id</code></td></tr>
+    </tbody>
+</table>
+<div class="code-block">
+    <div class="code-header"><span class="code-lang">TypeScript</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+    <pre><code><span class="kw">import</span> { DuplicateKeyError, QuotaExceededError } <span class="kw">from</span> <span class="str">"@lkkhwhb/browserdb"</span>;
+
+<span class="kw">try</span> {
+    users.<span class="fn">insertOne</span>({ <span class="pr">_id</span>: <span class="str">"existing-id"</span>, name: <span class="str">"Duplicate"</span> });
+} <span class="kw">catch</span> (e) {
+    <span class="kw">if</span> (e <span class="kw">instanceof</span> <span class="ty">DuplicateKeyError</span>) {
+        console.<span class="fn">error</span>(<span class="str">"Document ID already exists!"</span>);
+    }
+}</code></pre>
+</div>
+</section>
+
+<section id="react-integration">
+<h2>React Integration</h2>
+
+<h3>Vite + React (TypeScript)</h3>
+<div class="code-block">
+    <div class="code-header"><span class="code-lang">TSX</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+    <pre><code><span class="kw">import</span> React, { useState, useEffect } <span class="kw">from</span> <span class="str">"react"</span>;
+<span class="kw">import</span> { BrowserDB, WithId } <span class="kw">from</span> <span class="str">"@lkkhwhb/browserdb"</span>;
+
+<span class="kw">interface</span> <span class="ty">Task</span> { title: <span class="ty">string</span>; completed: <span class="ty">boolean</span>; }
+
+<span class="kw">const</span> db = <span class="kw">new</span> <span class="fn">BrowserDB</span>();
+<span class="kw">const</span> tasks = db.<span class="fn">collection</span>&lt;<span class="ty">Task</span>&gt;(<span class="str">"tasks"</span>);
+
+<span class="kw">export function</span> <span class="fn">TaskApp</span>() {
+    <span class="kw">const</span> [items, setItems] = <span class="fn">useState</span>&lt;WithId&lt;<span class="ty">Task</span>&gt;[]&gt;([]);
+
+    <span class="fn">useEffect</span>(() =&gt; <span class="fn">setItems</span>(tasks.<span class="fn">find</span>()), []);
+
+    <span class="kw">const</span> <span class="fn">addTask</span> = (title: <span class="ty">string</span>) =&gt; {
+        tasks.<span class="fn">insertOne</span>({ title, completed: <span class="num">false</span> });
+        <span class="fn">setItems</span>(tasks.<span class="fn">find</span>());
+    };
+
+    <span class="kw">return</span> (
+        &lt;<span class="pr">ul</span>&gt;
+            {items.<span class="fn">map</span>(t =&gt; &lt;<span class="pr">li</span> key={t._id}&gt;{t.title}&lt;/<span class="pr">li</span>&gt;)}
+        &lt;/<span class="pr">ul</span>&gt;
+    );
+}</code></pre>
+</div>
+
+</section>
+
+<section id="architecture">
+<h2>Architecture</h2>
+<p>BrowserDB is split into focused, single-responsibility modules for easy maintenance:</p>
+<table class="dt">
+    <thead><tr><th>File</th><th>Responsibility</th></tr></thead>
+    <tbody>
+        <tr><td><code>types.ts</code></td><td>Type definitions — <code>Document</code>, <code>WithId</code>, <code>Filter</code>, <code>Update</code>, <code>QueryOperators</code>, <code>DatabaseStats</code></td></tr>
+        <tr><td><code>errors.ts</code></td><td>Custom error classes — <code>DatabaseError</code>, <code>QuotaExceededError</code>, <code>DataCorruptionError</code>, <code>DuplicateKeyError</code></td></tr>
+        <tr><td><code>utils/uuid.ts</code></td><td>Secure UUID v4 generator — official <code>uuid</code> package with <code>crypto.randomUUID</code> fallback</td></tr>
+        <tr><td><code>query.ts</code></td><td>Query matching engine with comparison operator support and type enforcement</td></tr>
+        <tr><td><code>storage.ts</code></td><td>localStorage abstraction with JSON parsing and quota error handling</td></tr>
+        <tr><td><code>collection.ts</code></td><td>Collection class implementing all CRUD operations</td></tr>
+        <tr><td><code>database.ts</code></td><td>Main <code>BrowserDB</code> class — collection management and storage statistics</td></tr>
+        <tr><td><code>index.ts</code></td><td>Public API barrel file re-exporting all modules</td></tr>
+    </tbody>
+</table>
+<p>The build system produces three output formats: <strong>ESM</strong> (<code>dist/index.mjs</code>), <strong>CommonJS</strong> (<code>dist/index.js</code>), and <strong>IIFE</strong> (<code>dist/browserdb.global.js</code>) for direct CDN usage.</p>
+</section>
+
+<section id="browser-compatibility">
+<h2>Browser Compatibility</h2>
+<p>BrowserDB targets ES2020 and provides graceful fallbacks for modern APIs.</p>
+<div class="compat-grid">
+    <span class="compat-yes">✓ Chrome 80+</span>
+    <span class="compat-yes">✓ Firefox 75+</span>
+    <span class="compat-yes">✓ Safari 13.1+</span>
+    <span class="compat-yes">✓ Edge 80+</span>
+    <span class="compat-yes">✓ Mobile Chrome</span>
+    <span class="compat-yes">✓ Mobile Safari</span>
+    <span class="compat-no">✗ Internet Explorer</span>
+    <span class="compat-no">✗ Node.js (SSR)</span>
+</div>
+</section>
+
+<section id="limitations">
+<h2>Limitations</h2>
+<div class="callout callout-warn"><strong>Storage quota:</strong> Browsers enforce a ~5 MB limit per origin for <code>localStorage</code>. Exceeding this throws <code>QuotaExceededError</code>. For larger datasets, consider IndexedDB.</div>
+<div class="callout callout-err"><strong>Environment:</strong> BrowserDB requires <code>window</code> and <code>localStorage</code>. It will not work in Node.js, Web Workers, or SSR without polyfills.</div>
+<p>Non-serializable types that are not preserved across read/write cycles:</p>
+<table class="dt">
+    <thead><tr><th>Type</th><th>Behavior</th></tr></thead>
+    <tbody>
+        <tr><td><code>Date</code></td><td>Serialized as ISO 8601 string; not restored as Date object</td></tr>
+        <tr><td><code>Map</code> / <code>Set</code></td><td>Serialized as empty object <code>{}</code></td></tr>
+        <tr><td><code>BigInt</code></td><td>Throws <code>TypeError</code> during serialization</td></tr>
+        <tr><td><code>undefined</code></td><td>Omitted from serialized output</td></tr>
+        <tr><td><code>Function</code></td><td>Omitted from serialized output</td></tr>
+        <tr><td>Class instances</td><td>Lose prototype chain; become plain objects</td></tr>
+    </tbody>
+</table>
+
+<div class="see-also">
+    <h4>See also</h4>
+    <ul>
+        <li><a href="https://github.com/lkkhwhb/browserDB">BrowserDB on GitHub</a></li>
+        <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage">MDN: Window.localStorage</a></li>
+        <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API">MDN: IndexedDB API</a> — for datasets exceeding 5 MB</li>
+        <li><a href="https://www.mongodb.com/docs/manual/crud/">MongoDB CRUD Operations</a> — the API that inspired BrowserDB</li>
+    </ul>
+</div>
+</section>
+
+<section id="license">
+<h2>License</h2>
+<p>Copyright &copy; 2026&ndash;present <strong>lkkhwhb</strong>. Licensed under the <a href="https://opensource.org/licenses/MIT">MIT License</a>.</p>
+<p>Source code: <a href="https://github.com/lkkhwhb/browserDB">https://github.com/lkkhwhb/browserDB</a></p>
+</section>
+
+</article>
+
+<footer class="page-footer">
+    <p>BrowserDB v1.0.0 · Created by <a href="https://github.com/lkkhwhb">lkkhwhb</a> · <a href="https://github.com/lkkhwhb/browserDB">GitHub</a> · MIT License</p>
+</footer>
+
+<script>
+function copyCode(btn) {
+    const block = btn.closest('.code-block');
+    const code = block.querySelector('pre code');
+    navigator.clipboard.writeText(code.textContent).then(() => {
+        btn.textContent = 'Copied!';
+        btn.classList.add('copied');
+        setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
+    });
+}
+function copyText(id, btn) {
+    const el = document.getElementById(id);
+    navigator.clipboard.writeText(el.textContent).then(() => {
+        btn.textContent = 'Copied!';
+        btn.classList.add('copied');
+        setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
+    });
+}
+</script>
+
+</body>
+</html>

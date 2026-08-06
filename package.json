@@ -1,0 +1,50 @@
+{
+  "name": "@lkkhwhb/browserdb",
+  "version": "1.0.0",
+  "description": "A lightweight, dependency-free, MongoDB-inspired document database built on top of the browser's localStorage.",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "unpkg": "dist/browserdb.global.js",
+  "jsdelivr": "dist/browserdb.global.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "keywords": [
+    "localstorage",
+    "database",
+    "mongodb",
+    "browser",
+    "nosql",
+    "typescript"
+  ],
+  "author": "lkkhwhb",
+  "license": "MIT",
+  "dependencies": {
+    "uuid": "^11.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.1",
+    "@types/uuid": "^10.0.0",
+    "jsdom": "^26.0.0",
+    "tsup": "^8.4.0",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.5"
+  }
+}
