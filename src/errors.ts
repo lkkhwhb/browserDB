@@ -30,8 +30,16 @@ export class QuotaExceededError extends DatabaseError {
 
 export class DataCorruptionError extends DatabaseError {
     constructor(collectionName: string) {
-        super(`Failed to parse JSON for collection '${collectionName}'.`);
+        super(`Data corruption detected in collection '${collectionName}'.`);
         this.name = "DataCorruptionError";
+        Object.setPrototypeOf(this, new.target.prototype);
+    }
+}
+
+export class ValidationError extends DatabaseError {
+    constructor(message: string) {
+        super(`Schema validation failed: ${message}`);
+        this.name = "ValidationError";
         Object.setPrototypeOf(this, new.target.prototype);
     }
 }

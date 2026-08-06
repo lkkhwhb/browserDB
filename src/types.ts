@@ -55,6 +55,10 @@ export interface FindOptions<T> {
 
 export type SubscriptionCallback<T> = (data: WithId<T>[]) => void;
 
+export type SchemaDef<T> = {
+    [P in keyof T]?: "string" | "number" | "boolean" | "object" | "array" | "any";
+};
+
 export interface DatabaseStats {
     usedBytes: number;
     usedKB: string;
