@@ -4,6 +4,7 @@ export default defineConfig([
   {
     entry: ["src/index.ts"],
     format: ["cjs", "esm"],
+    platform: "browser",
     dts: true,
     sourcemap: true,
     clean: true,
@@ -14,6 +15,7 @@ export default defineConfig([
       "browserdb.global": "src/index.ts",
     },
     format: ["iife"],
+    platform: "browser",
     globalName: "BrowserDB",
     noExternal: ["uuid"],
     minify: true,
