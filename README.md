@@ -9,8 +9,11 @@ BrowserDB provides a clean, strongly typed API for storing and querying JSON doc
 
 ## Features
 
-* **⚡ In-Memory Caching (NEW!)**: Automatically caches documents in memory for instant read performance while perfectly synchronizing cross-tab updates.
-* **🔥 Auto-Compression (NEW!)**: Automatically compresses all documents through native `CompressionStream` (deflate), then packs the binary via a custom **UTF-16 bit-packer**, giving you **up to 60MB of usable space** (~12x extra space) while staying under the browser's 5MB limit!
+* **🔄 Reactive Subscriptions (NEW!)**: Automatically sync UIs across tabs in real-time when data changes.
+* **📦 Transactions & Batching (NEW!)**: Group multiple database writes in memory and flush to disk in a single transaction.
+* **🔍 Fluent Queries (NEW!)**: Supports pagination, sorting, and projection directly in `find()`.
+* **⚡ In-Memory Caching**: Automatically caches documents in memory for instant read performance while perfectly synchronizing cross-tab updates.
+* **🔥 Auto-Compression**: Automatically compresses all documents through native `CompressionStream` (deflate), then packs the binary via a custom **UTF-16 bit-packer**, giving you **up to 60MB of usable space** (~12x extra space) while staying under the browser's 5MB limit!
 * **⏱️ TTL (Time To Live)**: Documents can automatically self-destruct after a specified time to keep your storage quota clean.
 * **🖼️ Image Optimization API**: The built-in `db.images()` API handles file uploads by auto-resizing and converting images to highly efficient WebP Base64 strings.
 * **Zero External Config**: Works out of the box in modern browsers, Vite (React TS / JS), Next.js, and vanilla applications.
@@ -172,7 +175,7 @@ We compared saving 1,000 JSON documents to native `localStorage` versus BrowserD
 | **Storage Size** | ~115.40 KB | **~8.80 KB** (~12x extra space) |
 | **Execution Time** | 1.00 ms (Blocking) | **8.10 ms** (Non-blocking) |
 
-> **The Tradeoff:** BrowserDB trades ~7ms of invisible background processing to compress your data, completely unblocking the main UI thread while giving you 3x more usable storage space!
+> **The Tradeoff:** BrowserDB trades ~7ms of invisible background processing to compress your data, completely unblocking the main UI thread while giving you ~12x more usable storage space!
 
 ---
 
@@ -256,14 +259,42 @@ await users.insertMany([
 ]);
 ```
 
-### Find All & Filter
+### Find All, Filter & Advanced Operators
 
 ```ts
 // Find all documents
 const allUsers = await users.find();
 
-// Find matching documents
-const adults = await users.find({ age: { $gte: 18 } });
+// Find matching documents with advanced operators
+const results = await users.find({
+    age: { $gte: 18, $lt: 65 },
+    role: { $in: ["admin", "editor"] },
+    $or: [
+        { status: "active" },
+        { status: "pending" }
+    ]
+});
+```
+
+Supported Query Operators:
+- `$eq`, `$ne`, `$gt`, `$gte`, `$lt`, `$lte`
+- `$in`, `$nin` (Array inclusion)
+- `$and`, `$or` (Logical operators)
+
+### Find Options (Sort, Limit, Skip, Projection)
+
+You can pass a second argument to `find()` and `findOne()` to precisely control the returned data:
+
+```ts
+const page2 = await users.find(
+    { status: "active" }, 
+    { 
+        sort: { age: -1 },       // Sort by age descending
+        skip: 10,                // Skip first 10
+        limit: 10,               // Limit to 10 results
+        projection: { name: 1 }  // Only return the name field (and _id)
+    }
+);
 ```
 
 ### Find One
@@ -272,14 +303,23 @@ const adults = await users.find({ age: { $gte: 18 } });
 const user = await users.findOne({ name: "Alice" });
 ```
 
-### Update
+### Update Operations
+
+BrowserDB supports full MongoDB-style update operators:
 
 ```ts
 await users.updateOne(
     { name: "Alice" },
-    { $set: { age: 21 } }
+    { 
+        $set: { status: "active" },
+        $inc: { loginCount: 1 },         // Increment number
+        $push: { roles: "moderator" },   // Push to array
+        $unset: { temporaryToken: 1 }    // Delete a field
+    }
 );
 ```
+
+You can also pull from arrays (`$pull`) or completely replace a document using `replaceOne(filter, newDoc)`.
 
 > Note: Document `_id` is immutable and cannot be altered during update.
 
@@ -294,6 +334,50 @@ await users.deleteOne({ name: "Alice" });
 ```ts
 const total = await users.count();
 await users.clear();
+```
+
+---
+
+## Reactive Subscriptions (Real-time sync)
+
+You can subscribe to collections to be instantly notified when data changes. 
+* This is perfect for React/Svelte state management. 
+* It **automatically detects cross-tab changes** (if a user updates the database in Tab B, the UI in Tab A updates instantly).
+
+```ts
+const unsubscribe = users.subscribe({ status: "active" }, (activeUsers) => {
+    // This callback is fired immediately, and then 
+    // triggers whenever the active users change!
+    console.log("Active users updated:", activeUsers);
+});
+
+// Later, stop listening
+unsubscribe();
+```
+
+---
+
+## Transactions & Batch Writes
+
+Since writing to `localStorage` is slow and compression takes CPU cycles, you can group multiple operations together in a Transaction. They will only be compressed and written to disk **once** at the end.
+
+```ts
+await db.transaction(async () => {
+    // Everything executed inside here is batched in memory
+    await users.insertOne({ name: "Alice" });
+    await users.updateOne({ name: "Bob" }, { $set: { status: "active" } });
+    await users.deleteOne({ name: "Charlie" });
+}); // Automatically commits and writes to disk here!
+```
+
+---
+
+## Utilities
+
+### Generate UUIDs
+BrowserDB exports a cryptographically secure UUID generator:
+```ts
+const id = db.uuid.v4();
 ```
 
 ---

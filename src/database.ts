@@ -16,11 +16,15 @@ import { Collection } from "./collection";
 import { DatabaseError } from "./errors";
 import { ImageStore } from "./imageStore";
 import { DatabaseStats, Document } from "./types";
+import { uuid } from "./utils/uuid";
 
 export class BrowserDB {
     private readonly prefix = "browserdb_";
     private collections: Map<string, Collection<Document>> = new Map();
     private imageStores: Map<string, ImageStore> = new Map();
+    private isBatching = false;
+
+    public uuid = { v4: uuid };
 
     constructor() {
         if (typeof window === "undefined" || typeof localStorage === "undefined") {
@@ -35,9 +39,29 @@ export class BrowserDB {
      */
     collection<T extends Document>(name: string): Collection<T> {
         if (!this.collections.has(name)) {
-            this.collections.set(name, new Collection<Document>(name, this.prefix));
+            const col = new Collection<Document>(name, this.prefix);
+            if (this.isBatching) col.beginBatch();
+            this.collections.set(name, col);
         }
         return this.collections.get(name) as unknown as Collection<T>;
+    }
+
+    async transaction(callback: () => Promise<void>): Promise<void> {
+        if (this.isBatching) throw new DatabaseError("Nested transactions are not supported.");
+        this.isBatching = true;
+        
+        for (const collection of this.collections.values()) {
+            collection.beginBatch();
+        }
+
+        try {
+            await callback();
+        } finally {
+            this.isBatching = false;
+            for (const collection of this.collections.values()) {
+                await collection.commitBatch();
+            }
+        }
     }
 
     images(name: string): ImageStore {

@@ -25,15 +25,35 @@ export type QueryOperators<T> = {
     $gte?: T;
     $lt?: T;
     $lte?: T;
+    $in?: T[];
+    $nin?: T[];
 };
 
 export type Filter<T> = {
     [P in keyof T]?: T[P] | QueryOperators<T[P]>;
+} & {
+    $and?: Filter<T>[];
+    $or?: Filter<T>[];
 };
 
 export type Update<T> = {
     $set?: Partial<T>;
+    $inc?: Partial<Record<keyof T, number>>;
+    $unset?: Partial<Record<keyof T, 1 | true>>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    $push?: Partial<Record<keyof T, any>>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    $pull?: Partial<Record<keyof T, any>>;
 };
+
+export interface FindOptions<T> {
+    sort?: { [P in keyof T]?: 1 | -1 };
+    skip?: number;
+    limit?: number;
+    projection?: { [P in Exclude<keyof T, "_id">]?: 1 | 0 };
+}
+
+export type SubscriptionCallback<T> = (data: WithId<T>[]) => void;
 
 export interface DatabaseStats {
     usedBytes: number;

@@ -28,18 +28,27 @@ export class Query {
             return false;
         }
         const keys = Object.keys(obj as Record<string, unknown>);
-        return keys.some(k => k === "$ne" || k === "$gt" || k === "$gte" || k === "$lt" || k === "$lte");
+        return keys.some(k => k === "$ne" || k === "$gt" || k === "$gte" || k === "$lt" || k === "$lte" || k === "$in" || k === "$nin");
     }
 
     static matches<T>(doc: WithId<T>, filter: Filter<T>): boolean {
+        if (filter.$and) {
+            if (!filter.$and.every(subFilter => Query.matches(doc, subFilter))) return false;
+        }
+        if (filter.$or) {
+            if (!filter.$or.some(subFilter => Query.matches(doc, subFilter))) return false;
+        }
+
         for (const key in filter) {
+            if (key === "$and" || key === "$or") continue;
             if (!Object.prototype.hasOwnProperty.call(filter, key)) continue;
 
             const condition = filter[key];
             const docValue = doc[key as keyof WithId<T>] as unknown;
 
             if (Query.isQueryOperatorObject(condition)) {
-                const ops = condition as QueryOperators<unknown>;
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const ops = condition as any;
                 
                 if (ops.$ne !== undefined && docValue === ops.$ne) return false;
                 
@@ -54,6 +63,12 @@ export class Query {
                 }
                 if (ops.$lte !== undefined) {
                     if (!Query.isComparable(docValue, ops.$lte) || (docValue as string | number) > (ops.$lte as string | number)) return false;
+                }
+                if (ops.$in !== undefined && Array.isArray(ops.$in)) {
+                    if (!ops.$in.includes(docValue)) return false;
+                }
+                if (ops.$nin !== undefined && Array.isArray(ops.$nin)) {
+                    if (ops.$nin.includes(docValue)) return false;
                 }
             } else if (typeof condition === "object" && condition !== null) {
                 if (JSON.stringify(docValue) !== JSON.stringify(condition)) return false;

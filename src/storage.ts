@@ -19,6 +19,9 @@ export class Storage<T> {
     private readonly key: string;
     private readonly collectionName: string;
     private cachedData: T[] | null = null;
+    private onExternalChange?: () => void;
+    public isBatching = false;
+    private hasBatchedChanges = false;
 
     constructor(key: string, collectionName: string) {
         this.key = key;
@@ -28,6 +31,7 @@ export class Storage<T> {
             window.addEventListener("storage", (e) => {
                 if (e.key === this.key) {
                     this.cachedData = null;
+                    if (this.onExternalChange) this.onExternalChange();
                 }
             });
         }
@@ -91,6 +95,12 @@ export class Storage<T> {
             throw new DatabaseError("localStorage is not available.");
         }
         
+        if (this.isBatching) {
+            this.cachedData = [...data];
+            this.hasBatchedChanges = true;
+            return;
+        }
+
         try {
             const raw = JSON.stringify(data);
             const compressed = await this.compress(raw);
@@ -112,5 +122,24 @@ export class Storage<T> {
         if (typeof localStorage !== "undefined") {
             localStorage.removeItem(this.key);
         }
+    }
+
+    setOnExternalChange(callback: () => void) {
+        this.onExternalChange = callback;
+    }
+
+    beginBatch() {
+        this.isBatching = true;
+        this.hasBatchedChanges = false;
+    }
+
+    async commitBatch(): Promise<boolean> {
+        this.isBatching = false;
+        if (this.hasBatchedChanges && this.cachedData) {
+            this.hasBatchedChanges = false;
+            await this.write(this.cachedData);
+            return true;
+        }
+        return false;
     }
 }
