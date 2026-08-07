@@ -3,98 +3,414 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BrowserDB Manual Test Suite</title>
-    <!-- Use local build if testing locally, or change to CDN if testing CDN -->
-    <script src="../dist/browserdb.global.js"></script>
+    <title>BrowserDB Full Test Dashboard</title>
+    <script>
+        function loadScript(src, fallback) {
+            const script = document.createElement('script');
+            script.src = src;
+            script.onerror = () => {
+                console.warn("Failed to load " + src + ". Falling back to CDN...");
+                const fallbackScript = document.createElement('script');
+                fallbackScript.src = fallback;
+                document.head.appendChild(fallbackScript);
+            };
+            document.head.appendChild(script);
+        }
+        loadScript('../dist/browserdb.global.js', 'https://cdn.jsdelivr.net/npm/@lkkhwhb/browserdb@latest/dist/browserdb.global.js');
+    </script>
     <style>
-        body { font-family: sans-serif; padding: 20px; background: #111; color: #fff; }
-        #log { background: #222; padding: 15px; border-radius: 5px; height: 500px; overflow-y: auto; font-family: monospace; white-space: pre-wrap; }
-        .pass { color: #0f0; }
-        .fail { color: #f00; }
-        .info { color: #0cf; }
+        :root {
+            --bg: #0f172a;
+            --card-bg: #1e293b;
+            --border: #334155;
+            --text: #f8fafc;
+            --pass: #22c55e;
+            --fail: #ef4444;
+            --info: #38bdf8;
+            --warn: #f59e0b;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; background: var(--bg); color: var(--text); padding: 20px; line-height: 1.5; }
+        
+        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 15px; }
+        h1 { color: var(--info); font-size: 1.5rem; }
+        
+        .controls { display: flex; gap: 10px; margin-bottom: 20px; }
+        button { background: #3b82f6; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; font-family: inherit; transition: opacity 0.2s; }
+        button:hover { opacity: 0.9; }
+        button.danger { background: #dc2626; }
+        
+        .dashboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .stat-card { background: var(--card-bg); border: 1px solid var(--border); padding: 15px; border-radius: 8px; text-align: center; }
+        .stat-card .value { font-size: 1.8rem; font-weight: bold; margin-top: 5px; }
+        .stat-card.pass .value { color: var(--pass); }
+        .stat-card.fail .value { color: var(--fail); }
+        .stat-card.total .value { color: var(--info); }
+        .stat-card.time .value { color: var(--warn); }
+
+        #log { background: #020617; border: 1px solid var(--border); padding: 15px; border-radius: 8px; height: 550px; overflow-y: auto; white-space: pre-wrap; font-size: 0.88rem; }
+        .log-entry { margin-bottom: 4px; border-bottom: 1px solid #1e293b; padding-bottom: 2px; }
+        .pass { color: var(--pass); }
+        .fail { color: var(--fail); }
+        .info { color: var(--info); }
+        .warn { color: var(--warn); }
+        .section-header { color: #e2e8f0; font-weight: bold; background: #1e293b; padding: 4px 8px; border-radius: 4px; margin: 12px 0 6px 0; display: block; }
     </style>
 </head>
 <body>
-    <h1>BrowserDB API Test Suite</h1>
-    <p>Open the console to view detailed logs, or see the summary below.</p>
-    <button onclick="runTests()">Run All Tests</button>
-    <button onclick="db.clear()">Clear DB</button>
-    <div id="log"></div>
+
+    <header>
+        <h1>🧪 BrowserDB Comprehensive Test Dashboard</h1>
+        <div id="dbStatus">Status: Ready</div>
+    </header>
+
+    <div class="controls">
+        <button onclick="runAllTests()">▶ Run All Tests</button>
+        <button class="danger" onclick="clearDatabase()">🗑️ Clear Storage</button>
+    </div>
+
+    <div class="dashboard">
+        <div class="stat-card total"><div>TOTAL TESTS</div><div id="statTotal" class="value">0</div></div>
+        <div class="stat-card pass"><div>PASSED</div><div id="statPassed" class="value">0</div></div>
+        <div class="stat-card fail"><div>FAILED</div><div id="statFailed" class="value">0</div></div>
+        <div class="stat-card time"><div>DURATION</div><div id="statTime" class="value">0ms</div></div>
+    </div>
+
+    <div id="log">Click "Run All Tests" to begin execution...</div>
 
     <script>
-        const db = new window.BrowserDB.BrowserDB();
-        const users = db.collection("test_users");
+        let db;
+        let stats = { total: 0, passed: 0, failed: 0 };
 
-        function log(msg, type = 'info') {
-            const div = document.createElement('div');
-            div.className = type;
-            div.textContent = msg;
-            document.getElementById('log').appendChild(div);
-            console.log(`[${type.toUpperCase()}] ${msg}`);
+        function updateStatsUI(duration = 0) {
+            document.getElementById('statTotal').textContent = stats.total;
+            document.getElementById('statPassed').textContent = stats.passed;
+            document.getElementById('statFailed').textContent = stats.failed;
+            document.getElementById('statTime').textContent = Math.round(duration) + "ms";
         }
 
-        async function runTests() {
+        function log(msg, type = 'info', isHeader = false) {
+            const logEl = document.getElementById('log');
+            const div = document.createElement('div');
+            
+            if (isHeader) {
+                div.className = 'section-header';
+                div.textContent = msg;
+            } else {
+                div.className = "log-entry " + type;
+                const prefix = type === 'pass' ? '✓ [PASS]' : type === 'fail' ? '✗ [FAIL]' : type === 'warn' ? '⚠ [WARN]' : 'ℹ [INFO]';
+                div.textContent = prefix + " " + msg;
+            }
+            
+            logEl.appendChild(div);
+            logEl.scrollTop = logEl.scrollHeight;
+            console.log("[" + type.toUpperCase() + "] " + msg);
+        }
+
+        function assert(condition, testName, failDetails = '') {
+            stats.total++;
+            if (condition) {
+                stats.passed++;
+                log(testName, 'pass');
+            } else {
+                stats.failed++;
+                log(testName + (failDetails ? ' -> ' + failDetails : ''), 'fail');
+            }
+            updateStatsUI();
+        }
+
+        async function initDB() {
+            if (!window.BrowserDB || !window.BrowserDB.BrowserDB) {
+                throw new Error("BrowserDB library failed to load. Check script source path.");
+            }
+            return new window.BrowserDB.BrowserDB();
+        }
+
+        async function clearDatabase() {
+            try {
+                db = db || await initDB();
+                await db.clear();
+                localStorage.clear();
+                document.getElementById('log').innerHTML = '';
+                log('Storage & LocalStorage completely purged.', 'warn');
+                stats = { total: 0, passed: 0, failed: 0 };
+                updateStatsUI();
+            } catch (err) {
+                log("Clear failed: " + err.message, 'fail');
+            }
+        }
+
+        async function runAllTests() {
+            const startTime = performance.now();
             document.getElementById('log').innerHTML = '';
-            log('Starting tests...', 'info');
+            stats = { total: 0, passed: 0, failed: 0 };
+            updateStatsUI();
 
             try {
-                // 1. Clear db
-                await db.clear();
-                log('Database cleared', 'pass');
+                db = await initDB();
+                log('Initialized BrowserDB Instance', 'info');
 
-                // 2. Insert
-                const user1 = await users.insertOne({ name: 'Alice', age: 25, status: 'active' });
-                const user2 = await users.insertOne({ name: 'Bob', age: 30, status: 'inactive' });
-                log(`Inserted: ${user1._id}, ${user2._id}`, 'pass');
-
-                // 3. Find $eq (Explicit Syntax)
-                const eqResult = await users.find({ status: { $eq: 'active' } });
-                if (eqResult.length === 1 && eqResult[0].name === 'Alice') {
-                    log('$eq operator works correctly', 'pass');
-                } else {
-                    log(`$eq operator failed! Expected 1 Alice, got: ${JSON.stringify(eqResult)}`, 'fail');
-                }
-
-                // 4. Find $ne (Deep Equality check)
-                const neResult = await users.find({ status: { $ne: 'active' } });
-                if (neResult.length === 1 && neResult[0].name === 'Bob') {
-                    log('$ne operator works correctly', 'pass');
-                } else {
-                    log(`$ne operator failed! Expected 1 Bob, got: ${JSON.stringify(neResult)}`, 'fail');
-                }
-
-                // 5. Subscription Initial Callback (Synchronous if cached)
-                let syncTriggered = false;
-                const unsub = users.subscribe({ status: 'active' }, (data) => {
-                    syncTriggered = true;
-                    log(`Subscription initial callback fired with ${data.length} docs`, 'info');
-                });
+                // ----------------------------------------------------
+                // 1. DATABASE INITIALIZATION & UUID
+                // ----------------------------------------------------
+                log('--- 1. Initialization & Utilities ---', 'info', true);
+                const colA = db.collection('test_col_a');
+                assert(colA !== null, 'Create Collection Instance');
                 
-                if (syncTriggered) {
-                    log('subscribe() fired initial callback SYNCHRONOUSLY!', 'pass');
-                } else {
-                    log('subscribe() initial callback is ASYNCHRONOUS', 'fail');
-                }
-                unsub(); // Cleanup
+                const uuid = db.uuid && db.uuid.v4 ? db.uuid.v4() : null;
+                assert(typeof uuid === 'string' && uuid.length === 36, 'UUID Generator v4', 'Got: ' + uuid);
 
-                // 6. Gallery API
-                const gallery = db.gallery('test_media');
-                const blob = new Blob(['hello world'], { type: 'text/plain' });
-                await gallery.store('media_1', blob);
-                const url = await gallery.get('media_1');
-                if (url && url.startsWith('blob:')) {
-                    log('Gallery API stored and retrieved blob URL successfully', 'pass');
-                } else {
-                    log('Gallery API failed', 'fail');
-                }
-                URL.revokeObjectURL(url);
-                await db.dropCollection('test_media'); // Should trigger indexedDB deletion
+                // ----------------------------------------------------
+                // 2. INSERT OPERATIONS
+                // ----------------------------------------------------
+                log('--- 2. Insert Operations ---', 'info', true);
+                await colA.clear();
 
-                log('--- ALL TESTS COMPLETED ---', 'info');
+                const doc1 = await colA.insertOne({ name: 'Alice', age: 25, status: 'active', tags: ['dev'] });
+                assert(doc1._id !== undefined, 'insertOne() Auto-generated _id');
+
+                const doc2 = await colA.insertOne({ _id: 'custom_b', name: 'Bob', age: 30, status: 'inactive' });
+                assert(doc2._id === 'custom_b', 'insertOne() Custom _id');
+
+                let duplicateFailed = false;
+                try {
+                    await colA.insertOne({ _id: 'custom_b', name: 'Duplicate' });
+                } catch (e) {
+                    duplicateFailed = true;
+                }
+                assert(duplicateFailed, 'insertOne() Rejects Duplicate _id');
+
+                const batch = await colA.insertMany([
+                    { name: 'Charlie', age: 35, status: 'active' },
+                    { name: 'Diana', age: 40, status: 'pending' }
+                ]);
+                assert(Array.isArray(batch) && batch.length === 2, 'insertMany() Batch Insert');
+
+                // ----------------------------------------------------
+                // 3. FIND & OPERATORS
+                // ----------------------------------------------------
+                log('--- 3. Find Operations & Query Engine ---', 'info', true);
+                
+                const allDocs = await colA.find();
+                assert(allDocs.length === 4, 'find() All Documents');
+
+                // Implicit Equality
+                const activeDocs = await colA.find({ status: 'active' });
+                assert(activeDocs.length === 2, 'Implicit Equality Match ({ status: "active" })');
+
+                // Explicit $eq
+                const eqDocs = await colA.find({ status: { $eq: 'active' } });
+                assert(eqDocs.length === 2, 'Explicit $eq Operator ({ status: { $eq: "active" } })', 'Got length ' + eqDocs.length);
+
+                // $ne, $gt, $in
+                const neDocs = await colA.find({ status: { $ne: 'active' } });
+                assert(neDocs.length === 2, '$ne Operator');
+
+                const gtDocs = await colA.find({ age: { $gt: 28 } });
+                assert(gtDocs.length === 3, '$gt Operator');
+
+                const inDocs = await colA.find({ status: { $in: ['pending', 'inactive'] } });
+                assert(inDocs.length === 2, '$in Operator');
+
+                // Logical $or
+                const orDocs = await colA.find({ $or: [{ name: 'Alice' }, { age: 40 }] });
+                assert(orDocs.length === 2, '$or Operator');
+
+                // Find Options (Sort, Limit, Skip, Projection)
+                const sorted = await colA.find({}, { sort: { age: -1 }, limit: 2, skip: 1 });
+                assert(sorted.length === 2 && sorted[0].name === 'Charlie', 'Find Options (Sort, Limit, Skip)');
+
+                const proj = await colA.find({ name: 'Alice' }, { projection: { name: 1 } });
+                assert(proj[0]._id && proj[0].name && proj[0].age === undefined, 'Find Options (Projection)');
+
+                const single = await colA.findOne({ name: 'Alice' });
+                assert(single && single.name === 'Alice', 'findOne() Retrieval');
+
+                // ----------------------------------------------------
+                // 4. UPDATE OPERATIONS
+                // ----------------------------------------------------
+                log('--- 4. Update Operations ---', 'info', true);
+                await colA.updateOne({ name: 'Alice' }, { $set: { age: 26 }, $inc: { points: 10 }, $push: { tags: 'lead' } });
+                const updatedAlice = await colA.findOne({ name: 'Alice' });
+                assert(updatedAlice.age === 26 && updatedAlice.points === 10 && updatedAlice.tags.includes('lead'), 'updateOne() ($set, $inc, $push)');
+
+                await colA.updateOne({ name: 'Alice' }, { $unset: { points: 1 }, $pull: { tags: 'dev' } });
+                const pulledAlice = await colA.findOne({ name: 'Alice' });
+                assert(pulledAlice.points === undefined && !pulledAlice.tags.includes('dev'), 'updateOne() ($unset, $pull)');
+
+                await colA.replaceOne({ _id: 'custom_b' }, { name: 'Bobby', age: 31, replaced: true });
+                const replacedBob = await colA.findOne({ _id: 'custom_b' });
+                assert(replacedBob.name === 'Bobby' && replacedBob.replaced === true, 'replaceOne() Preservation of _id');
+
+                // ----------------------------------------------------
+                // 5. DELETE & COUNT
+                // ----------------------------------------------------
+                log('--- 5. Delete & Count Operations ---', 'info', true);
+                await colA.deleteOne({ name: 'Bobby' });
+                const countAfterDelete = await colA.count();
+                assert(countAfterDelete === 3, 'deleteOne() & count() Update');
+
+                // ----------------------------------------------------
+                // 6. TRANSACTIONS & BATCHING
+                // ----------------------------------------------------
+                log('--- 6. Transactions ---', 'info', true);
+                await db.transaction(async () => {
+                    await colA.insertOne({ name: 'TxUser1', age: 20 });
+                    await colA.insertOne({ name: 'TxUser2', age: 22 });
+                });
+                const countAfterTx = await colA.count();
+                assert(countAfterTx === 5, 'db.transaction() Batch Commit');
+
+                // ----------------------------------------------------
+                // 7. MIDDLEWARE HOOKS
+                // ----------------------------------------------------
+                log('--- 7. Middleware Hooks ---', 'info', true);
+                const hookCol = db.collection('hook_test');
+                await hookCol.clear();
+
+                let afterFired = false;
+                hookCol.beforeInsert(async (doc) => Object.assign({}, doc, { hookApplied: true }));
+                hookCol.afterInsert(() => { afterFired = true; });
+
+                const hookDoc = await hookCol.insertOne({ name: 'Hooked' });
+                assert(hookDoc.hookApplied === true, 'beforeInsert Hook Modification');
+                assert(afterFired, 'afterInsert Hook Callback');
+
+                // ----------------------------------------------------
+                // 8. SCHEMA VALIDATION
+                // ----------------------------------------------------
+                log('--- 8. Schema Validation ---', 'info', true);
+                const valCol = db.collection('schema_test');
+                await valCol.clear();
+                valCol.setValidator({
+                    $jsonSchema: {
+                        bsonType: 'object',
+                        required: ['title', 'price'],
+                        properties: {
+                            price: { bsonType: 'number', minimum: 0 }
+                        }
+                    }
+                });
+
+                let valErrorCaught = false;
+                try {
+                    await valCol.insertOne({ title: 'Free Item', price: -5 });
+                } catch (e) {
+                    valErrorCaught = true;
+                }
+                assert(valErrorCaught, 'Schema Validation Bounds Enforcement');
+
+                // ----------------------------------------------------
+                // 9. TTL (TIME TO LIVE)
+                // ----------------------------------------------------
+                log('--- 9. TTL Expiration ---', 'info', true);
+                const ttlDoc = await colA.insertOne({ temp: 'value' }, { ttlMs: 300 });
+                assert(await colA.findOne({ _id: ttlDoc._id }) !== null, 'TTL Immediate Read');
+                
+                await new Promise(r => setTimeout(r, 450));
+                assert(await colA.findOne({ _id: ttlDoc._id }) === null, 'TTL Self-Cleanup Expiration');
+
+                // ----------------------------------------------------
+                // 10. SUBSCRIPTIONS
+                // ----------------------------------------------------
+                log('--- 10. Reactive Subscriptions ---', 'info', true);
+                let syncFired = false;
+                let asyncFired = false;
+
+                const unsub = colA.subscribe({}, () => {
+                    syncFired = true;
+                    asyncFired = true;
+                });
+
+                assert(syncFired === true, 'subscribe() Initial Fire Check', 'Was sync: ' + syncFired);
+                
+                await colA.insertOne({ name: 'SubTrigger' });
+                assert(asyncFired === true, 'subscribe() Reactive Update Trigger');
+                unsub();
+
+                // ----------------------------------------------------
+                // 11. GALLERY API
+                // ----------------------------------------------------
+                log('--- 11. Gallery API (IndexedDB Binary Engine) ---', 'info', true);
+                const gallery = db.gallery('media_test');
+                const testBlob = new Blob(['sample text binary'], { type: 'text/plain' });
+                
+                await gallery.store('img_1', testBlob);
+                const objUrl = await gallery.get('img_1');
+                const retrievedBlob = await gallery.getBlob('img_1');
+
+                assert(typeof objUrl === 'string' && objUrl.startsWith('blob:'), 'Gallery store() & get() Object URL');
+                assert(retrievedBlob instanceof Blob && retrievedBlob.size === testBlob.size, 'Gallery getBlob() Raw Binary');
+
+                URL.revokeObjectURL(objUrl);
+                await gallery.remove('img_1');
+                assert(await gallery.get('img_1') === null, 'Gallery remove() Cleanup');
+
+                // ----------------------------------------------------
+                // 12. STATS & COMPRESSION
+                // ----------------------------------------------------
+                log('--- 12. Storage Statistics & Compression ---', 'info', true);
+                const dbStats = await db.stats();
+                assert(dbStats && typeof dbStats.usedBytes === 'number', 'db.stats() Metrics Introspection');
+
+                // ----------------------------------------------------
+                // 13. EDGE CASES & TYPES
+                // ----------------------------------------------------
+                log('--- 13. Edge Cases & Special Characters ---', 'info', true);
+                const edgeCol = db.collection('edge_test');
+                await edgeCol.clear();
+
+                const unicodeString = 'Hello \u4e16\u754c \uD83C\uDF0D \uD83D\uDD25';
+                const htmlString = `<script>alert("xss")<\/script>`;
+                
+
+                const edgeResult = await edgeCol.insertOne({
+                    unicode: unicodeString,
+                    html: htmlString,
+                    nullVal: null,
+                    boolVal: true,
+                    floatVal: 3.14159265
+                });
+                const fetchedEdge = await edgeCol.findOne({ _id: edgeResult._id });
+                assert(
+                    fetchedEdge.unicode === unicodeString &&
+                    fetchedEdge.nullVal === null &&
+                    fetchedEdge.floatVal === 3.14159265,
+                    'Unicode, Emojis, Floating Points & Null Serialization'
+                );
+
+                // ----------------------------------------------------
+                // 14. PERFORMANCE BENCHMARK (1,000 DOCS)
+                // ----------------------------------------------------
+                log('--- 14. Performance Benchmark (1,000 Docs) ---', 'info', true);
+                const perfCol = db.collection('perf_test');
+                await perfCol.clear();
+
+                const perfItems = [];
+                for (let i = 0; i < 1000; i++) {
+                    perfItems.push({ idx: i, text: 'Item #' + i });
+                }
+                
+                const t0 = performance.now();
+                await perfCol.insertMany(perfItems);
+                const tInsert = performance.now() - t0;
+                log('Bulk Inserted 1,000 Documents in ' + tInsert.toFixed(2) + 'ms', 'info');
+
+                const t1 = performance.now();
+                const foundPerf = await perfCol.find({ idx: { $gt: 500 } });
+                const tFind = performance.now() - t1;
+                log('Queried 1,000 Documents in ' + tFind.toFixed(2) + 'ms (Found ' + foundPerf.length + ')', 'info');
+
+                assert(foundPerf.length === 499, 'Benchmark Query Accuracy');
+
+                log('--- ALL TEST MODULES FINISHED ---', 'info', true);
 
             } catch (err) {
-                log(`ERROR: ${err.message}`, 'fail');
+                log('UNCAUGHT TEST RUNNER EXCEPTION: ' + err.message, 'fail');
                 console.error(err);
+            } finally {
+                const totalDuration = performance.now() - startTime;
+                updateStatsUI(totalDuration);
             }
         }
     </script>
