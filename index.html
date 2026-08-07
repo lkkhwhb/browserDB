@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BrowserDB 1.2.0 — Lightweight MongoDB-Inspired Browser Document Database</title>
+    <title>BrowserDB 1.2.1-beta.0 — Lightweight MongoDB-Inspired Browser Document Database</title>
     <meta name="description" content="BrowserDB is a lightweight client-side database optimized for the localStorage backend. Full TypeScript support, query operators, CDN ready.">
     <meta name="keywords" content="BrowserDB, localStorage, browser database, MongoDB, TypeScript, JavaScript, document database, CDN, npm, client-side storage">
     <meta name="author" content="lkkhwhb">
@@ -12,6 +12,7 @@
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://github.com/lkkhwhb/browserDB">
     <link rel="canonical" href="https://github.com/lkkhwhb/browserDB">
+    <link rel="icon" type="image/png" href="assets/browserdb.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -19,7 +20,7 @@
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
         :root{
             --bg:#fdfdfe;--bg-alt:#f5f6fa;
-            --bg-code:#0d1117; /* GitHub Dark */
+            --bg-code:#0d1117;
             --bg-code-header:#161b22;
             --border-code:#30363d;
             --border:#e2e4ee;--border-strong:#cdd0de;
@@ -42,11 +43,95 @@
             --syn-prop:#79c0ff;
             --syn-text:#c9d1d9;
         }
+
+        /* Dark Mode Theme Overrides */
+        [data-theme="dark"] {
+            --bg: #0f172a;
+            --bg-alt: #1e293b;
+            --border: #334155;
+            --border-strong: #475569;
+            --text: #f8fafc;
+            --text-dim: #94a3b8;
+            --text-link: #38bdf8;
+            --text-heading: #ffffff;
+            --accent: #38bdf8;
+            --accent-light: #0369a1;
+            --green-tag: #064e3b;
+            --green-text: #6ee7b7;
+            --red-tag: #7f1d1d;
+            --red-text: #fca5a5;
+        }
+
         html{scroll-behavior:smooth;font-size:16px}
-        body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:1.75;-webkit-font-smoothing:antialiased}
+        body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:1.75;-webkit-font-smoothing:antialiased;transition:background 0.2s, color 0.2s}
         a{color:var(--text-link);text-decoration:none;transition:color .15s}
-        a:hover{color:#3a56d4;text-decoration:underline}
+        a:hover{text-decoration:underline}
         ::selection{background:var(--accent-light);color:var(--accent)}
+
+        /* Sticky Screen-Pinned Beta Banner with Close Button */
+        .beta-banner{
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            background: #fff8eb;
+            border-bottom: 1px solid #fee1b3;
+            color: #8a5800;
+            padding: 10px 20px;
+            text-align: center;
+            font-size: 0.875rem;
+            font-weight: 500;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        }
+        [data-theme="dark"] .beta-banner {
+            background: #451a03;
+            border-bottom: 1px solid #78350f;
+            color: #fde68a;
+        }
+        .beta-banner code{background:#fef3db;padding:2px 6px;border-radius:4px;font-family:var(--mono);font-size:0.8rem;color:#704200}
+        [data-theme="dark"] .beta-banner code { background: #78350f; color: #fef3db; }
+        
+        .beta-close-btn {
+            background: transparent;
+            border: none;
+            color: inherit;
+            cursor: pointer;
+            font-size: 1.1rem;
+            font-weight: bold;
+            padding: 0 6px;
+            border-radius: 4px;
+            transition: background 0.15s;
+        }
+        .beta-close-btn:hover { background: rgba(0,0,0,0.1); }
+        [data-theme="dark"] .beta-close-btn:hover { background: rgba(255,255,255,0.1); }
+
+        /* Header Theme Toggle Button */
+        .theme-toggle {
+            background: var(--bg-alt);
+            border: 1px solid var(--border-strong);
+            color: var(--text);
+            padding: 8px 16px;
+            border-radius: var(--radius);
+            cursor: pointer;
+            font-family: var(--font);
+            font-size: 0.875rem;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+        .theme-toggle:hover { border-color: var(--accent); color: var(--accent); text-decoration: none; }
+        .theme-toggle svg { width: 16px; height: 16px; fill: currentColor; }
+
+        /* Icon visibility states */
+        [data-theme="dark"] .sun-icon { display: block; }
+        [data-theme="dark"] .moon-icon { display: none; }
+        [data-theme="light"] .sun-icon { display: none; }
+        [data-theme="light"] .moon-icon { display: block; }
 
         /* Nice Scrollbar */
         ::-webkit-scrollbar { width: 10px; height: 10px; }
@@ -57,16 +142,18 @@
         .page{max-width:var(--max);margin:0 auto;padding:48px 28px 96px}
 
         header.page-header{margin-bottom:40px}
+        .brand-wrapper { display: flex; align-items: center; gap: 14px; margin-bottom: 6px; }
+        .brand-logo { width: 44px; height: 44px; object-fit: contain; border-radius: 8px; }
         header.page-header h1{font-size:2.8rem;font-weight:800;color:var(--text-heading);letter-spacing:-1.5px;line-height:1.15}
         header.page-header .tagline{font-size:1.1rem;color:var(--text-dim);margin-top:8px;max-width:640px;line-height:1.7}
         .header-meta{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap;align-items:center}
         .pill{font-size:.75rem;padding:4px 14px;border-radius:99px;font-weight:500}
         .pill-outline{border:1px solid var(--border-strong);color:var(--text-dim);background:var(--bg)}
         .pill-accent{background:var(--accent);color:#fff;border:none}
-        .header-links{display:flex;gap:10px;margin-top:16px}
+        .header-links{display:flex;gap:10px;margin-top:16px;align-items:center;flex-wrap:wrap}
         .header-links a{display:inline-flex;align-items:center;gap:6px;padding:8px 20px;border-radius:var(--radius);font-size:.875rem;font-weight:600;transition:all .2s}
         .btn-fill{background:var(--accent);color:#fff}
-        .btn-fill:hover{background:#3a56d4;text-decoration:none;color:#fff}
+        .btn-fill:hover{opacity:0.9;text-decoration:none;color:#fff}
         .btn-ghost{border:1px solid var(--border-strong);color:var(--text)}
         .btn-ghost:hover{border-color:var(--accent);color:var(--accent);text-decoration:none}
 
@@ -100,18 +187,18 @@
         
         .code-block pre{
             margin:0;border:none;border-radius:0;background:transparent;padding:16px 20px;
-            white-space: pre-wrap; word-wrap: break-word; /* Shrink to fit, switch to newline */
+            white-space: pre-wrap; word-wrap: break-word;
             line-height:1.3;
         }
         .code-block pre code{font-family:var(--mono);font-size:.85rem;color:var(--syn-text)}
 
-        code:not(pre code){font-family:var(--mono);font-size:.84em;background:var(--bg-alt);padding:2px 6px;border-radius:4px;border:1px solid var(--border);color:#7048e8}
+        code:not(pre code){font-family:var(--mono);font-size:.84em;background:var(--bg-alt);padding:2px 6px;border-radius:4px;border:1px solid var(--border);color:var(--accent)}
 
         table.dt{width:100%;border-collapse:collapse;margin:14px 0 22px;font-size:.875rem;border-radius:var(--radius);overflow:hidden;border:1px solid var(--border)}
         table.dt th{text-align:left;padding:10px 14px;background:var(--bg-alt);font-weight:600;color:var(--text-heading);border-bottom:1px solid var(--border)}
         table.dt td{padding:10px 14px;border-bottom:1px solid var(--border)}
         table.dt tr:last-child td{border-bottom:none}
-        table.dt tr:hover td{background:var(--accent-light)}
+        table.dt tr:hover td{background:var(--accent-light);color:var(--text)}
 
         .method-box{background:var(--bg-alt);border:1px solid var(--border);border-radius:var(--radius);padding:14px 18px;margin:10px 0 16px}
         .method-box .sig{font-family:var(--mono);font-size:.84rem;color:var(--accent);font-weight:500}
@@ -119,8 +206,11 @@
 
         .callout{padding:14px 20px;margin:16px 0;border-radius:var(--radius);font-size:.875rem;border-left:4px solid}
         .callout-info{background:#eef3ff;border-left-color:var(--accent);color:#2a3a7a}
+        [data-theme="dark"] .callout-info { background: #082f49; color: #bae6fd; }
         .callout-warn{background:#fef9ec;border-left-color:#e8a317;color:#7a5a0a}
+        [data-theme="dark"] .callout-warn { background: #451a03; color: #fde68a; }
         .callout-err{background:#fef2f2;border-left-color:#e53e3e;color:#7a1a1a}
+        [data-theme="dark"] .callout-err { background: #450a0a; color: #fca5a5; }
 
         .compat-grid{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0}
         .compat-item{font-size:.8rem;padding:6px 14px;border-radius:var(--radius);font-weight:500}
@@ -128,14 +218,14 @@
         .compat-no{background:var(--red-tag);color:var(--red-text)}
 
         .card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px;margin:20px 0}
-        .card{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:22px;transition:border-color .2s,box-shadow .2s}
+        .card{background:var(--bg-alt);border:1px solid var(--border);border-radius:var(--radius);padding:22px;transition:border-color .2s,box-shadow .2s}
         .card:hover{border-color:var(--accent);box-shadow:0 2px 16px rgba(79,109,245,0.08)}
         .card .card-icon{font-size:1.5rem;margin-bottom:8px}
-        .card h4{margin:0 0 4px;font-size:.95rem}
+        .card h4{margin:0 0 4px;font-size:.95rem;color:var(--text-heading)}
         .card p{font-size:.84rem;color:var(--text-dim);margin:0;line-height:1.6}
 
         .see-also{background:var(--bg-alt);border:1px solid var(--border);border-radius:var(--radius);padding:18px 22px;margin:28px 0}
-        .see-also h4{margin:0 0 8px;font-size:.95rem;font-weight:600}
+        .see-also h4{margin:0 0 8px;font-size:.95rem;font-weight:600;color:var(--text-heading)}
         .see-also ul{margin:0;padding-left:20px}
         .see-also li{font-size:.85rem;line-height:2}
 
@@ -151,28 +241,43 @@
         .kw{color:var(--syn-keyword)}.fn{color:var(--syn-fn)}.str{color:var(--syn-str)}.num{color:var(--syn-num)}.cm{color:var(--syn-comment)}.op{color:var(--syn-op)}.ty{color:var(--syn-type)}.pr{color:var(--syn-prop)}
     </style>
 </head>
-<body>
+<body data-theme="light">
+
+<!-- Sticky Screen-Pinned Beta Notice Banner -->
+<div id="betaBanner" class="beta-banner">
+    <span>⚠️ <strong>Release Candidate:</strong> You are viewing documentation under beta — <code>@lkkhwhb/browserdb@1.2.1-beta.0</code></span>
+    <button class="beta-close-btn" onclick="dismissBanner()" title="Close notice">&times;</button>
+</div>
 
 <article class="page">
 
 <header class="page-header">
-    <h1>BrowserDB</h1>
+    <div class="brand-wrapper">
+        <img src="assets/browserdb.png" alt="BrowserDB Logo" class="brand-logo">
+        <h1>BrowserDB</h1>
+    </div>
     <p class="tagline">A lightweight client-side database optimized for the localStorage backend. Zero config. TypeScript-first. CDN ready.</p>
     <div class="header-meta">
-        <span class="pill pill-outline">v1.2.0</span>
+        <span class="pill pill-accent">v1.2.1-beta.0</span>
         <span class="pill pill-outline">TypeScript</span>
         <span class="pill pill-outline">5.92 KB gzipped</span>
         <span class="pill pill-outline">Auto Compression</span>
         <span class="pill pill-outline">MIT License</span>
-        <span class="pill pill-accent">@lkkhwhb/browserdb</span>
+        <span class="pill pill-outline">@lkkhwhb/browserdb</span>
     </div>
     <div class="install-bar">
-        <code id="installCmd">npm install @lkkhwhb/browserdb@latest </code>
+        <code id="installCmd">npm install @lkkhwhb/browserdb@1.2.1-beta.0 </code>
         <button class="copy-btn" onclick="copyText('installCmd',this)">Copy</button>
     </div>
     <div class="header-links">
         <a class="btn-fill" href="https://github.com/lkkhwhb/browserDB">GitHub Repository</a>
         <a class="btn-ghost" href="#install-cdn">CDN Script Tag</a>
+        <!-- Dark Mode Toggle Button with VS Code Codicons -->
+        <button class="theme-toggle" onclick="toggleTheme()" title="Toggle Dark/Light Mode">
+            <svg class="sun-icon" viewBox="0 0 16 16"><path fill-rule="evenodd" clip-rule="evenodd" d="M8 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM8 0a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0V.75A.75.75 0 0 1 8 0zm0 13.75a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0v-1.5a.75.75 0 0 1 .75-.75zM2.343 3.405a.75.75 0 0 1 1.061 0l1.06 1.061a.75.75 0 0 1-1.06 1.06l-1.06-1.06a.75.75 0 0 1 0-1.061zm10.152 10.152a.75.75 0 0 1 1.06 0l1.061 1.06a.75.75 0 0 1-1.06 1.06l-1.061-1.06a.75.75 0 0 1 0-1.06zM0 8a.75.75 0 0 1 .75-.75h1.5a.75.75 0 0 1 0 1.5H.75A.75.75 0 0 1 0 8zm13.75 0a.75.75 0 0 1 .75-.75h1.5a.75.75 0 0 1 0 1.5h-1.5a.75.75 0 0 1-.75-.75zM3.405 13.657a.75.75 0 0 1 0-1.06l1.06-1.061a.75.75 0 0 1 1.061 1.06l-1.06 1.061a.75.75 0 0 1-1.061 0zm10.152-10.152a.75.75 0 0 1 0 1.06l-1.06 1.061a.75.75 0 0 1-1.061-1.06l1.06-1.061a.75.75 0 0 1 1.061 0z"/></svg>
+            <svg class="moon-icon" viewBox="0 0 16 16"><path fill-rule="evenodd" clip-rule="evenodd" d="M9.598 1.591a.75.75 0 0 1 .785-.175 7.001 7.001 0 1 1-8.96 8.96.75.75 0 0 1 .925-.945 5.5 5.5 0 1 0 7.25-7.84z"/></svg>
+            <span id="themeText">Dark Mode</span>
+        </button>
     </div>
 </header>
 
@@ -340,10 +445,10 @@ document.<span class="fn">getElementById</span>(<span class="str">"upload"</span
 <h2>Installation</h2>
 
 <h3 id="install-npm">NPM / Bundler</h3>
-<p>Install via npm for use in Vite, React, Next.js, or any bundler environment:</p>
+<p>Install the beta candidate via npm for use in Vite, React, Next.js, or any bundler environment:</p>
 <div class="code-block">
     <div class="code-header"><span class="code-lang">Terminal</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
-    <pre><code>npm install @lkkhwhb/browserdb@latest</code></pre>
+    <pre><code>npm install @lkkhwhb/browserdb@1.2.1-beta.0</code></pre>
 </div>
 <p>Then import in TypeScript or JavaScript:</p>
 <div class="code-block">
@@ -352,14 +457,15 @@ document.<span class="fn">getElementById</span>(<span class="str">"upload"</span
 </div>
 
 <h3 id="install-cdn">CDN Script Tag</h3>
-<p>Load the standalone bundle directly in any HTML page. No bundler or build step required. Here is a working prototype:</p>
+<p>Load the standalone beta candidate bundle directly in any HTML page. No bundler or build step required. Here is a working prototype:</p>
 <div class="code-block">
     <div class="code-header"><span class="code-lang">HTML</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
     <pre><code><span class="op">&lt;!</span><span class="kw">DOCTYPE</span> html<span class="op">&gt;</span>
 <span class="op">&lt;</span><span class="pr">html</span> lang=<span class="str">"en"</span><span class="op">&gt;</span>
 <span class="op">&lt;</span><span class="pr">head</span><span class="op">&gt;</span>
   <span class="op">&lt;</span><span class="pr">meta</span> charset=<span class="str">"UTF-8"</span><span class="op">&gt;</span>
-  <span class="op">&lt;</span><span class="pr">script</span> src=<span class="str">"https://cdn.jsdelivr.net/npm/@lkkhwhb/browserdb@1.2.0/dist/browserdb.global.js"</span><span class="op">&gt;&lt;/</span><span class="pr">script</span><span class="op">&gt;</span>
+  <span class="op">&lt;</span><span class="pr">link</span> rel=<span class="str">"icon"</span> href=<span class="str">"assets/browserdb.png"</span><span class="op">&gt;</span>
+  <span class="op">&lt;</span><span class="pr">script</span> src=<span class="str">"https://cdn.jsdelivr.net/npm/@lkkhwhb/browserdb@1.2.1-beta.0/dist/browserdb.global.js"</span><span class="op">&gt;&lt;/</span><span class="pr">script</span><span class="op">&gt;</span>
 <span class="op">&lt;/</span><span class="pr">head</span><span class="op">&gt;</span>
 <span class="op">&lt;</span><span class="pr">body</span><span class="op">&gt;</span>
   <span class="op">&lt;</span><span class="pr">form</span> id=<span class="str">"postForm"</span><span class="op">&gt;</span>
@@ -667,7 +773,7 @@ users.<span class="fn">afterUpdate</span>((doc) => {
 <h2>Storage Statistics</h2>
 <div class="code-block">
     <div class="code-header"><span class="code-lang">TypeScript</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
-    <pre><code><span class="kw">const</span> stats = <span class="kw">await</span> db.<span class="fn">stats</span>();
+    <pre><code><span class="kw">const</span> stats = <span class="kw>await</span> db.<span class="fn">stats</span>();
 <span class="cm">// {
 //   usedBytes: 1024,
 //   usedKB: "1.00 KB",
@@ -812,10 +918,74 @@ users.<span class="fn">afterUpdate</span>((doc) => {
 </article>
 
 <footer class="page-footer">
-    <p>BrowserDB v1.2.0 · Created by <a href="https://github.com/lkkhwhb">Bhargav</a> · <a href="https://github.com/lkkhwhb/browserDB">GitHub</a> · MIT License</p>
+    <p>BrowserDB v1.2.1-beta.0 · Created by <a href="https://github.com/lkkhwhb">Bhargav</a> · <a href="https://github.com/lkkhwhb/browserDB">GitHub</a> · MIT License</p>
 </footer>
 
+<!-- Load BrowserDB UMD/Global CDN script so it's available for theme persistence -->
+<script src="https://cdn.jsdelivr.net/npm/@lkkhwhb/browserdb@1.2.1-beta.0/dist/browserdb.global.js"></script>
+
 <script>
+// Initialize BrowserDB instance for documentation settings persistence
+let themeDb;
+let settingsCol;
+
+try {
+    if (window.BrowserDB && window.BrowserDB.BrowserDB) {
+        themeDb = new window.BrowserDB.BrowserDB();
+        settingsCol = themeDb.collection("docs_settings");
+    }
+} catch (e) {
+    console.warn("BrowserDB settings collection init failed:", e);
+}
+
+function dismissBanner() {
+    const banner = document.getElementById('betaBanner');
+    if (banner) {
+        banner.style.display = 'none';
+    }
+}
+
+async function toggleTheme() {
+    const body = document.body;
+    const currentTheme = body.getAttribute('data-theme');
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    body.setAttribute('data-theme', newTheme);
+    
+    updateThemeLabel(newTheme);
+    
+    // Save theme choice securely inside BrowserDB collection instead of raw localStorage
+    if (settingsCol) {
+        try {
+            await settingsCol.deleteOne({ _id: "theme_preference" });
+            await settingsCol.insertOne({ _id: "theme_preference", theme: newTheme });
+        } catch (err) {
+            console.error("Failed to save theme to BrowserDB:", err);
+        }
+    }
+}
+
+function updateThemeLabel(theme) {
+    const themeText = document.getElementById('themeText');
+    if (themeText) {
+        themeText.textContent = theme === 'dark' ? 'Light Mode' : 'Dark Mode';
+    }
+}
+
+// Load saved theme preference from BrowserDB collection on page load
+window.addEventListener('DOMContentLoaded', async () => {
+    if (settingsCol) {
+        try {
+            const setting = await settingsCol.findOne({ _id: "theme_preference" });
+            if (setting && setting.theme) {
+                document.body.setAttribute('data-theme', setting.theme);
+                updateThemeLabel(setting.theme);
+            }
+        } catch (err) {
+            console.error("Failed to load theme from BrowserDB:", err);
+        }
+    }
+});
+
 function copyCode(btn) {
     const block = btn.closest('.code-block');
     const code = block.querySelector('pre code');
