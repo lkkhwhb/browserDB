@@ -90,6 +90,13 @@ export class Storage<T> {
         }
     }
 
+    readCached(): T[] | null {
+        if (this.cachedData !== null) {
+            return [...this.cachedData];
+        }
+        return null;
+    }
+
     async write(data: T[]): Promise<void> {
         if (typeof localStorage === "undefined") {
             throw new DatabaseError("localStorage is not available.");

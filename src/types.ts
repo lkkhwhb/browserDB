@@ -20,6 +20,7 @@ export interface InsertOptions {
 }
 
 export type QueryOperators<T> = {
+    $eq?: T;
     $ne?: T;
     $gt?: T;
     $gte?: T;

@@ -29,7 +29,7 @@ export class Query {
             return false;
         }
         const keys = Object.keys(obj as Record<string, unknown>);
-        return keys.some(k => k === "$ne" || k === "$gt" || k === "$gte" || k === "$lt" || k === "$lte" || k === "$in" || k === "$nin");
+        return keys.some(k => k === "$eq" || k === "$ne" || k === "$gt" || k === "$gte" || k === "$lt" || k === "$lte" || k === "$in" || k === "$nin");
     }
 
     static matches<T>(doc: WithId<T>, filter: Filter<T>): boolean {
@@ -52,6 +52,7 @@ export class Query {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const ops = condition as any;
                 
+                if (ops.$eq !== undefined && !deepEqual(docValue, ops.$eq)) return false;
                 if (ops.$ne !== undefined && deepEqual(docValue, ops.$ne)) return false;
                 
                 if (ops.$gt !== undefined) {

@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BrowserDB Manual Test Suite</title>
+    <!-- Use local build if testing locally, or change to CDN if testing CDN -->
+    <script src="../dist/browserdb.global.js"></script>
+    <style>
+        body { font-family: sans-serif; padding: 20px; background: #111; color: #fff; }
+        #log { background: #222; padding: 15px; border-radius: 5px; height: 500px; overflow-y: auto; font-family: monospace; white-space: pre-wrap; }
+        .pass { color: #0f0; }
+        .fail { color: #f00; }
+        .info { color: #0cf; }
+    </style>
+</head>
+<body>
+    <h1>BrowserDB API Test Suite</h1>
+    <p>Open the console to view detailed logs, or see the summary below.</p>
+    <button onclick="runTests()">Run All Tests</button>
+    <button onclick="db.clear()">Clear DB</button>
+    <div id="log"></div>
+
+    <script>
+        const db = new window.BrowserDB.BrowserDB();
+        const users = db.collection("test_users");
+
+        function log(msg, type = 'info') {
+            const div = document.createElement('div');
+            div.className = type;
+            div.textContent = msg;
+            document.getElementById('log').appendChild(div);
+            console.log(`[${type.toUpperCase()}] ${msg}`);
+        }
+
+        async function runTests() {
+            document.getElementById('log').innerHTML = '';
+            log('Starting tests...', 'info');
+
+            try {
+                // 1. Clear db
+                await db.clear();
+                log('Database cleared', 'pass');
+
+                // 2. Insert
+                const user1 = await users.insertOne({ name: 'Alice', age: 25, status: 'active' });
+                const user2 = await users.insertOne({ name: 'Bob', age: 30, status: 'inactive' });
+                log(`Inserted: ${user1._id}, ${user2._id}`, 'pass');
+
+                // 3. Find $eq (Explicit Syntax)
+                const eqResult = await users.find({ status: { $eq: 'active' } });
+                if (eqResult.length === 1 && eqResult[0].name === 'Alice') {
+                    log('$eq operator works correctly', 'pass');
+                } else {
+                    log(`$eq operator failed! Expected 1 Alice, got: ${JSON.stringify(eqResult)}`, 'fail');
+                }
+
+                // 4. Find $ne (Deep Equality check)
+                const neResult = await users.find({ status: { $ne: 'active' } });
+                if (neResult.length === 1 && neResult[0].name === 'Bob') {
+                    log('$ne operator works correctly', 'pass');
+                } else {
+                    log(`$ne operator failed! Expected 1 Bob, got: ${JSON.stringify(neResult)}`, 'fail');
+                }
+
+                // 5. Subscription Initial Callback (Synchronous if cached)
+                let syncTriggered = false;
+                const unsub = users.subscribe({ status: 'active' }, (data) => {
+                    syncTriggered = true;
+                    log(`Subscription initial callback fired with ${data.length} docs`, 'info');
+                });
+                
+                if (syncTriggered) {
+                    log('subscribe() fired initial callback SYNCHRONOUSLY!', 'pass');
+                } else {
+                    log('subscribe() initial callback is ASYNCHRONOUS', 'fail');
+                }
+                unsub(); // Cleanup
+
+                // 6. Gallery API
+                const gallery = db.gallery('test_media');
+                const blob = new Blob(['hello world'], { type: 'text/plain' });
+                await gallery.store('media_1', blob);
+                const url = await gallery.get('media_1');
+                if (url && url.startsWith('blob:')) {
+                    log('Gallery API stored and retrieved blob URL successfully', 'pass');
+                } else {
+                    log('Gallery API failed', 'fail');
+                }
+                URL.revokeObjectURL(url);
+                await db.dropCollection('test_media'); // Should trigger indexedDB deletion
+
+                log('--- ALL TESTS COMPLETED ---', 'info');
+
+            } catch (err) {
+                log(`ERROR: ${err.message}`, 'fail');
+                console.error(err);
+            }
+        }
+    </script>
+</body>
+</html>

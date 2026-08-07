@@ -49,7 +49,19 @@ export class Collection<T extends Document> {
     subscribe(filter: TFilter<T> = {}, callback: SubscriptionCallback<T>, options?: FindOptions<T>): () => void {
         const listener = { filter, options, callback };
         this.listeners.add(listener);
-        this.find(filter, options).then(callback).catch(console.error);
+        const cached = this.storage.readCached();
+        if (cached !== null) {
+            const now = Date.now();
+            const validData = cached.filter(doc => !doc.__expiresAt || doc.__expiresAt >= now);
+            const results = this.filterData(validData, filter);
+            try {
+                callback(this.clone(this.applyFindOptions(results, options)));
+            } catch (e) {
+                console.error(e);
+            }
+        } else {
+            this.find(filter, options).then(callback).catch(console.error);
+        }
         return () => {
             this.listeners.delete(listener);
         };
