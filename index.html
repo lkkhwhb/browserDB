@@ -161,8 +161,8 @@
     <div class="header-meta">
         <span class="pill pill-outline">v1.2.0</span>
         <span class="pill pill-outline">TypeScript</span>
-        <span class="pill pill-outline">~7 KB gzipped</span>
-        <span class="pill pill-outline">Auto comression</span>
+        <span class="pill pill-outline">5.92 KB gzipped</span>
+        <span class="pill pill-outline">Auto Compression</span>
         <span class="pill pill-outline">MIT License</span>
         <span class="pill pill-accent">@lkkhwhb/browserdb</span>
     </div>
@@ -177,7 +177,6 @@
 </header>
 
 <nav class="toc" aria-label="Table of contents">
-    <div class="subtitle">v1.2.0 • Under 10KB Gzipped</div>
     <div class="toc-title">Table of Contents</div>
     <ol>
         <li><a href="#why-browserdb">Why BrowserDB?</a></li>
@@ -257,12 +256,12 @@
     <div class="card">
         <div class="card-icon">📦</div>
         <h4>Tiny Footprint</h4>
-        <p>Under 7 KB gzipped. Loads instantly via CDN script tag or bundled into Vite / React / Next.js projects.</p>
+        <p>5.92 KB gzipped. Loads instantly via CDN script tag or bundled into Vite / React / Next.js projects.</p>
     </div>
     <div class="card">
         <div class="card-icon">🛡️</div>
         <h4>Secure IDs</h4>
-        <p>Generates cryptographically secure UUID v4 identifiers using the official <code>uuid</code> library with <code>crypto.randomUUID</code> fallback.</p>
+        <p>Generates cryptographically secure UUID v4 identifiers prioritizing native <code>crypto.randomUUID</code> with an official <code>uuid</code> library fallback.</p>
     </div>
     <div class="card">
         <div class="card-icon">🔧</div>
@@ -302,7 +301,7 @@
     </tbody>
 </table>
 <div class="callout callout-info">
-    <strong>The Tradeoff:</strong> BrowserDB trades ~7ms of invisible background processing to compress your data, completely unblocking the main UI thread while giving you 3x more usable storage space!
+    <strong>The Tradeoff:</strong> BrowserDB trades ~7ms of invisible background processing to compress your data, completely unblocking the main UI thread while giving you ~12x more usable storage space!
 </div>
 </section>
 
@@ -331,7 +330,7 @@
 
 document.<span class="fn">getElementById</span>(<span class="str">"upload"</span>).<span class="fn">addEventListener</span>(<span class="str">"change"</span>, async (e) =&gt; {
     <span class="kw">const</span> file = e.target.files[<span class="num">0</span>];
-    <span class="kw">await</span> gallery.<span class="fn">store</span>(<span class="str">"vacation-pic"</span>, file, { maxWidth: <span class="num">1000</span>, quality: <span class="num">0.8</span> });
+    <span class="kw">await</span> gallery.<span class="fn">store</span>(<span class="str">"vacation-pic"</span>, file);
     <span class="kw">const</span> imgDataUrl = <span class="kw">await</span> gallery.<span class="fn">get</span>(<span class="str">"vacation-pic"</span>);
 });</code></pre>
 </div>
@@ -367,11 +366,22 @@ document.<span class="fn">getElementById</span>(<span class="str">"upload"</span
     <span class="op">&lt;</span><span class="pr">input</span> id=<span class="str">"titleInput"</span> <span class="op">/&gt;</span>
     <span class="op">&lt;</span><span class="pr">input</span> id=<span class="str">"contentInput"</span> <span class="op">/&gt;</span>
     <span class="op">&lt;</span><span class="pr">input</span> type=<span class="str">"file"</span> id=<span class="str">"mediaInput"</span> accept=<span class="str">"image/*,video/*,audio/*"</span> <span class="op">/&gt;</span>
-    <span class="op">&lt;</span><span class="pr">button</span> type=<span class="str">"submit"</span><span class="op">&gt;</span>Submit<span class="op">&lt;/</span><span class="pr">button</span><span class="op">&gt;</span>
+    <span class="op">&lt;</span><span class="pr">button</span> type=<span class="str">"submit"</span> onclick=<span class="str">"addNote()"</span><span class="op">&gt;</span>Submit<span class="op">&lt;/</span><span class="pr">button</span><span class="op">&gt;</span>
   <span class="op">&lt;/</span><span class="pr">form</span><span class="op">&gt;</span>
+  <span class="op">&lt;</span><span class="pr">ul</span> id=<span class="str">"notesList"</span><span class="op">&gt;&lt;/</span><span class="pr">ul</span><span class="op">&gt;</span>
 
   <span class="op">&lt;</span><span class="pr">script</span><span class="op">&gt;</span>
     <span class="kw">const</span> db = <span class="kw">new</span> window.BrowserDB.BrowserDB();
+    <span class="kw">const</span> notes = db.collection(<span class="str">"notes"</span>);
+
+    async <span class="kw">function</span> renderNotes() {
+      <span class="kw">const</span> list = document.getElementById(<span class="str">"notesList"</span>);
+      <span class="kw">if</span> (!list) <span class="kw">return</span>;
+      list.innerHTML = <span class="str">""</span>;
+      <span class="kw">const</span> allNotes = await notes.find();
+      allNotes.forEach(n =&gt; {
+        <span class="kw">const</span> li = document.createElement(<span class="str">"li"</span>);
+        li.textContent = n.title + <span class="str">": "</span> + n.content + <span class="str">" ("</span> + n._id.slice(0,8) + <span class="str">"...)"</span>;
         list.appendChild(li);
       });
     }
@@ -739,7 +749,7 @@ users.<span class="fn">afterUpdate</span>((doc) => {
     <tbody>
         <tr><td><code>types.ts</code></td><td>Type definitions — <code>Document</code>, <code>WithId</code>, <code>Filter</code>, <code>Update</code>, <code>QueryOperators</code>, <code>DatabaseStats</code></td></tr>
         <tr><td><code>errors.ts</code></td><td>Custom error classes — <code>DatabaseError</code>, <code>QuotaExceededError</code>, <code>DataCorruptionError</code>, <code>DuplicateKeyError</code></td></tr>
-        <tr><td><code>utils/uuid.ts</code></td><td>Secure UUID v4 generator — official <code>uuid</code> package with <code>crypto.randomUUID</code> fallback</td></tr>
+        <tr><td><code>utils/uuid.ts</code></td><td>Secure UUID v4 generator — native <code>crypto.randomUUID</code> with official <code>uuid</code> package fallback</td></tr>
         <tr><td><code>query.ts</code></td><td>Query matching engine with comparison operator support and type enforcement</td></tr>
         <tr><td><code>storage.ts</code></td><td>localStorage abstraction with JSON parsing and quota error handling</td></tr>
         <tr><td><code>collection.ts</code></td><td>Collection class implementing all CRUD operations</td></tr>
@@ -795,14 +805,14 @@ users.<span class="fn">afterUpdate</span>((doc) => {
 
 <section id="license">
 <h2>License</h2>
-<p>Copyright &copy; 2026&ndash;present <strong>lkkhwhb</strong>. Licensed under the <a href="https://opensource.org/licenses/MIT">MIT License</a>.</p>
+<p>Copyright &copy; 2026&ndash;present <strong>Bhargav</strong>. Licensed under the <a href="https://opensource.org/licenses/MIT">MIT License</a>.</p>
 <p>Source code: <a href="https://github.com/lkkhwhb/browserDB">https://github.com/lkkhwhb/browserDB</a></p>
 </section>
 
 </article>
 
 <footer class="page-footer">
-    <p>BrowserDB v1.1.1 · Created by <a href="https://github.com/lkkhwhb">lkkhwhb</a> · <a href="https://github.com/lkkhwhb/browserDB">GitHub</a> · MIT License</p>
+    <p>BrowserDB v1.2.0 · Created by <a href="https://github.com/lkkhwhb">Bhargav</a> · <a href="https://github.com/lkkhwhb/browserDB">GitHub</a> · MIT License</p>
 </footer>
 
 <script>
