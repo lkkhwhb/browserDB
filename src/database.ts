@@ -54,12 +54,18 @@ export class BrowserDB {
             collection.beginBatch();
         }
 
+        let success = false;
         try {
             await callback();
+            success = true;
         } finally {
             this.isBatching = false;
             for (const collection of this.collections.values()) {
-                await collection.commitBatch();
+                if (success) {
+                    await collection.commitBatch();
+                } else {
+                    collection.rollbackBatch();
+                }
             }
         }
     }
@@ -78,6 +84,16 @@ export class BrowserDB {
     dropCollection(name: string): void {
         localStorage.removeItem(`${this.prefix}${name}`);
         this.collections.delete(name);
+
+        const imgPrefix = `${this.prefix}img_${name}_`;
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith(imgPrefix)) {
+                keysToRemove.push(key);
+            }
+        }
+        keysToRemove.forEach(key => localStorage.removeItem(key));
     }
 
     clear(): void {
@@ -107,7 +123,6 @@ export class BrowserDB {
         for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
             if (key && key.startsWith(this.prefix)) {
-                collectionsCount++;
                 const rawData = localStorage.getItem(key) || "[]";
 
                 // localStorage strictly stores strings as UTF-16 (2 bytes per character).
@@ -115,6 +130,7 @@ export class BrowserDB {
                 usedBytes += (key.length + rawData.length) * 2;
 
                 if (!key.startsWith(`${this.prefix}img_`)) {
+                    collectionsCount++;
                     try {
                         const collectionName = key.substring(this.prefix.length);
                         docsCount += await this.collection(collectionName).count();

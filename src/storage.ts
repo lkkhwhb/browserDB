@@ -142,4 +142,10 @@ export class Storage<T> {
         }
         return false;
     }
+
+    rollbackBatch() {
+        this.isBatching = false;
+        this.hasBatchedChanges = false;
+        this.cachedData = null; // Next read will fetch fresh data from storage
+    }
 }

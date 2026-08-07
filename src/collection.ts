@@ -12,11 +12,12 @@
  *
  */
 
-import { DuplicateKeyError, ValidationError } from "./errors";
+import { DatabaseError, DuplicateKeyError, ValidationError } from "./errors";
 import { Query } from "./query";
 import { Storage } from "./storage";
 import { Document, Filter as TFilter, FindOptions, InsertOptions, JSONSchema, SubscriptionCallback, Update, ValidatorDef, WithId } from "./types";
 import { uuid } from "./utils/uuid";
+import { deepEqual } from "./utils/deepEqual";
 
 export class Collection<T extends Document> {
     private storage: Storage<WithId<T>>;
@@ -26,15 +27,18 @@ export class Collection<T extends Document> {
     private validator?: ValidatorDef;
     private mutex: Promise<void> = Promise.resolve();
     private hooks = {
-        beforeInsert: [] as Array<(doc: T) => T | Promise<T>>,
-        afterInsert: [] as Array<(doc: WithId<T>) => void | Promise<void>>,
-        beforeUpdate: [] as Array<(doc: WithId<T>) => WithId<T> | Promise<WithId<T>>>,
-        afterUpdate: [] as Array<(doc: WithId<T>) => void | Promise<void>>,
-        beforeDelete: [] as Array<(doc: WithId<T>) => void | Promise<void>>,
-        afterDelete: [] as Array<(doc: WithId<T>) => void | Promise<void>>
+        beforeInsert: [] as ((doc: T) => T | Promise<T>)[],
+        afterInsert: [] as ((doc: WithId<T>) => void | Promise<void>)[],
+        beforeUpdate: [] as ((doc: WithId<T>) => WithId<T> | Promise<WithId<T>>)[],
+        afterUpdate: [] as ((doc: WithId<T>) => void | Promise<void>)[],
+        beforeDelete: [] as ((doc: WithId<T>) => void | Promise<void>)[],
+        afterDelete: [] as ((doc: WithId<T>) => void | Promise<void>)[],
     };
 
-    constructor(name: string, prefix: string) {
+    private idIndex = new Map<string, number>();
+    private indexedDataRef: WithId<T>[] | null = null;
+
+    constructor(name: string, prefix = "browserdb_") {
         this.collectionName = name;
         this.storage = new Storage<WithId<T>>(`${prefix}${name}`, name);
         this.storage.setOnExternalChange(() => {
@@ -45,20 +49,44 @@ export class Collection<T extends Document> {
     subscribe(filter: TFilter<T> = {}, callback: SubscriptionCallback<T>, options?: FindOptions<T>): () => void {
         const listener = { filter, options, callback };
         this.listeners.add(listener);
-        this.find(filter, options).then(callback);
+        this.find(filter, options).then(callback).catch(console.error);
         return () => {
             this.listeners.delete(listener);
         };
     }
 
     private notifyListeners() {
-        if (this.listeners.size === 0 || this.storage.isBatching) return;
+        if (this.storage.isBatching) return;
         this.getValidData(false).then(data => {
             for (const listener of this.listeners) {
-                const filtered = data.filter(doc => Query.matches(doc, listener.filter));
-                listener.callback(this.clone(this.applyFindOptions(filtered, listener.options)));
+                const results = this.filterData(data, listener.filter);
+                listener.callback(this.clone(this.applyFindOptions(results, listener.options)));
             }
-        });
+        }).catch(console.error);
+    }
+
+    private filterData(data: WithId<T>[], filter: TFilter<T>): WithId<T>[] {
+        return data.filter(doc => Query.matches(doc, filter));
+    }
+
+    private buildIndex(data: WithId<T>[]) {
+        if (this.indexedDataRef === data) return;
+        this.idIndex.clear();
+        for (let i = 0; i < data.length; i++) {
+            this.idIndex.set(data[i]._id, i);
+        }
+        this.indexedDataRef = data;
+    }
+
+    private findTargetIndex(data: WithId<T>[], filter: TFilter<T>): number {
+        this.buildIndex(data);
+        if (Object.keys(filter).length === 1 && filter._id !== undefined && typeof filter._id === "string") {
+            const idx = this.idIndex.get(filter._id);
+            if (idx !== undefined && idx >= 0 && idx < data.length && data[idx]._id === filter._id) {
+                return idx;
+            }
+        }
+        return data.findIndex(doc => Query.matches(doc, filter));
     }
 
     beginBatch() {
@@ -69,6 +97,10 @@ export class Collection<T extends Document> {
         if (await this.storage.commitBatch()) {
             this.notifyListeners();
         }
+    }
+
+    rollbackBatch() {
+        this.storage.rollbackBatch();
     }
 
     private clone<U>(item: U): U {
@@ -96,7 +128,9 @@ export class Collection<T extends Document> {
         });
 
         if (hasExpired && triggerCleanup) {
-            this.storage.write(validData).catch(() => {});
+            this.runLocked(async () => {
+                await this.storage.write(validData);
+            }).catch(() => {});
         }
 
         return validData;
@@ -164,12 +198,12 @@ export class Collection<T extends Document> {
         this.validator = validator;
     }
 
-    beforeInsert(fn: (doc: T) => T | Promise<T>) { this.hooks.beforeInsert.push(fn); }
-    afterInsert(fn: (doc: WithId<T>) => void | Promise<void>) { this.hooks.afterInsert.push(fn); }
-    beforeUpdate(fn: (doc: WithId<T>) => WithId<T> | Promise<WithId<T>>) { this.hooks.beforeUpdate.push(fn); }
-    afterUpdate(fn: (doc: WithId<T>) => void | Promise<void>) { this.hooks.afterUpdate.push(fn); }
-    beforeDelete(fn: (doc: WithId<T>) => void | Promise<void>) { this.hooks.beforeDelete.push(fn); }
-    afterDelete(fn: (doc: WithId<T>) => void | Promise<void>) { this.hooks.afterDelete.push(fn); }
+    beforeInsert(fn: (doc: T) => T | Promise<T>) { this.hooks.beforeInsert.push(fn); return () => { this.hooks.beforeInsert = this.hooks.beforeInsert.filter(h => h !== fn); }; }
+    afterInsert(fn: (doc: WithId<T>) => void | Promise<void>) { this.hooks.afterInsert.push(fn); return () => { this.hooks.afterInsert = this.hooks.afterInsert.filter(h => h !== fn); }; }
+    beforeUpdate(fn: (doc: WithId<T>) => WithId<T> | Promise<WithId<T>>) { this.hooks.beforeUpdate.push(fn); return () => { this.hooks.beforeUpdate = this.hooks.beforeUpdate.filter(h => h !== fn); }; }
+    afterUpdate(fn: (doc: WithId<T>) => void | Promise<void>) { this.hooks.afterUpdate.push(fn); return () => { this.hooks.afterUpdate = this.hooks.afterUpdate.filter(h => h !== fn); }; }
+    beforeDelete(fn: (doc: WithId<T>) => void | Promise<void>) { this.hooks.beforeDelete.push(fn); return () => { this.hooks.beforeDelete = this.hooks.beforeDelete.filter(h => h !== fn); }; }
+    afterDelete(fn: (doc: WithId<T>) => void | Promise<void>) { this.hooks.afterDelete.push(fn); return () => { this.hooks.afterDelete = this.hooks.afterDelete.filter(h => h !== fn); }; }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     private validateSchema(doc: any) {
@@ -194,9 +228,9 @@ export class Collection<T extends Document> {
         const typeDef = schema.bsonType || schema.type;
         if (typeDef) {
             const types = Array.isArray(typeDef) ? typeDef : [typeDef];
-            const valType = Array.isArray(value) ? "array" : typeof value;
+            const valType = Array.isArray(value) ? "array" : (value === null ? "null" : typeof value);
             const match = types.some(t => {
-                if (t === "number" || t === "double" || t === "int") return valType === "number";
+                if (t === "number" || t === "double" || t === "int") return valType === "number" && !Number.isNaN(value);
                 if (t === "bool") return valType === "boolean";
                 return valType === t;
             });
@@ -249,6 +283,9 @@ export class Collection<T extends Document> {
 
             this.validateSchema(cloned);
 
+            if (cloned._id !== undefined && typeof cloned._id !== "string") {
+                throw new DatabaseError("Provided _id must be a string");
+            }
             const newId = typeof cloned._id === "string" ? cloned._id : uuid();
 
             if (data.some(doc => doc._id === newId)) {
@@ -293,6 +330,9 @@ export class Collection<T extends Document> {
                 }
                 this.validateSchema(cloned);
 
+                if (cloned._id !== undefined && typeof cloned._id !== "string") {
+                    throw new DatabaseError("Provided _id must be a string");
+                }
                 const newId = typeof cloned._id === "string" ? cloned._id : uuid();
 
                 if (seenIds.has(newId) || data.some(d => d._id === newId)) {
@@ -340,7 +380,7 @@ export class Collection<T extends Document> {
     async updateOne(filter: TFilter<T>, update: Update<T>): Promise<{ matched: boolean; modified: boolean }> {
         return this.runLocked(async () => {
             const data = await this.getValidData(false);
-            const index = data.findIndex(doc => Query.matches(doc, filter));
+            const index = this.findTargetIndex(data, filter);
 
             if (index === -1) {
                 return { matched: false, modified: false };
@@ -369,6 +409,9 @@ export class Collection<T extends Document> {
             if (update.$inc) {
                 for (const key in update.$inc) {
                     if (key === "_id") continue;
+                    if (target[key] !== undefined && typeof target[key] !== "number") {
+                        throw new DatabaseError(`Cannot apply $inc to a non-numeric field: ${key}`);
+                    }
                     if (typeof target[key] === "number") {
                         target[key] += update.$inc[key as keyof T] as number;
                     } else {
@@ -408,7 +451,7 @@ export class Collection<T extends Document> {
                         // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         target[key] = target[key].filter((item: any) => {
                             if (typeof pullVal === "object" && pullVal !== null) {
-                                 return JSON.stringify(item) !== JSON.stringify(pullVal);
+                                 return !deepEqual(item, pullVal);
                             }
                             return item !== pullVal;
                         });
@@ -436,7 +479,7 @@ export class Collection<T extends Document> {
     async replaceOne(filter: TFilter<T>, replacement: T): Promise<{ matched: boolean; modified: boolean }> {
         return this.runLocked(async () => {
             const data = await this.getValidData(false);
-            const index = data.findIndex(doc => Query.matches(doc, filter));
+            const index = this.findTargetIndex(data, filter);
 
             if (index === -1) {
                 return { matched: false, modified: false };
@@ -469,7 +512,7 @@ export class Collection<T extends Document> {
     async deleteOne(filter: TFilter<T>): Promise<{ deletedCount: number }> {
         return this.runLocked(async () => {
             const data = await this.getValidData(false);
-            const index = data.findIndex(doc => Query.matches(doc, filter));
+            const index = this.findTargetIndex(data, filter);
 
             if (index === -1) {
                 return { deletedCount: 0 };

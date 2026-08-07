@@ -14,7 +14,7 @@ const OFFSET = 0x0100;
 export function packToUTF16(bytes: Uint8Array): string {
     if (bytes.length === 0) return "";
     
-    let result = "";
+    const chars: string[] = [];
     let buffer = 0;
     let bitsInBuffer = 0;
     
@@ -25,7 +25,7 @@ export function packToUTF16(bytes: Uint8Array): string {
         while (bitsInBuffer >= 15) {
             bitsInBuffer -= 15;
             const chunk = (buffer >> bitsInBuffer) & 0x7FFF;
-            result += String.fromCharCode(chunk + OFFSET);
+            chars.push(String.fromCharCode(chunk + OFFSET));
         }
     }
     
@@ -34,13 +34,13 @@ export function packToUTF16(bytes: Uint8Array): string {
         // Shift remaining bits to the top of the 15-bit chunk
         paddingBits = 15 - bitsInBuffer;
         const chunk = (buffer << paddingBits) & 0x7FFF;
-        result += String.fromCharCode(chunk + OFFSET);
+        chars.push(String.fromCharCode(chunk + OFFSET));
     }
     
     // Store padding size in the last character so we can unpack precisely
-    result += String.fromCharCode(paddingBits + OFFSET);
+    chars.push(String.fromCharCode(paddingBits + OFFSET));
     
-    return result;
+    return chars.join("");
 }
 
 export function unpackFromUTF16(str: string): Uint8Array {
