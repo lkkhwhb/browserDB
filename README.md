@@ -5,6 +5,14 @@
 A lightweight, MongoDB-inspired client-side document database with hybrid storage (localStorage + IndexedDB), reactive subscriptions, schema validation, and full TypeScript support.  
 Designed for browser applications that need a simple yet powerful offline or persistent data layer.
 
+
+> **📖 Documentation Guide**
+>
+> This README focuses on **how to use BrowserDB**. It covers the public API, concepts, examples, and best practices for **`@lkkhwhb/browserdb@2.0.1-beta.0`**.
+>
+> If you're interested in **how BrowserDB works internally**—including its architecture, storage engine, compression pipeline, query execution, transaction manager, synchronization, and implementation details—see **[deepDive.md](./deepDive.md)**.
+>
+> **Important:** `deepDive.md` describes the **current implementation** of BrowserDB. Because it documents internal design rather than the public API, some implementation details may change between releases even when the public API remains compatible.
 ---
 
 ## Table of Contents
