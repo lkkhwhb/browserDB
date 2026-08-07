@@ -1,6 +1,6 @@
 /**
  * BrowserDB
- * A lightweight, dependency-free, MongoDB-inspired document database
+ * A lightweight, MongoDB-inspired document database
  * built on top of the browser's localStorage.
  *
  * Copyright (c) 2026–present Bhargav Barman
@@ -14,15 +14,16 @@
 
 import { DatabaseError, DuplicateKeyError, ValidationError } from "./errors";
 import { Query } from "./query";
-import { Storage } from "./storage";
-import { Document, Filter as TFilter, FindOptions, InsertOptions, JSONSchema, SubscriptionCallback, Update, ValidatorDef, WithId } from "./types";
+import { HybridStorageEngine } from "./engines/HybridStorageEngine";
+import { CollectionOptions, Document, Filter as TFilter, FindOptions, InsertOptions, JSONSchema, StorageEngine, SubscriptionCallback, Update, ValidatorDef, WithId } from "./types";
 import { uuid } from "./utils/uuid";
 import { deepEqual } from "./utils/deepEqual";
 
 export class Collection<T extends Document> {
-    private storage: Storage<WithId<T>>;
+    private storage: StorageEngine<WithId<T>>;
     private readonly collectionName: string;
     private listeners: Set<{ filter: TFilter<T>; options?: FindOptions<T>; callback: SubscriptionCallback<T> }> = new Set();
+    private pendingSubscriptions: (() => void)[] = [];
 
     private validator?: ValidatorDef;
     private mutex: Promise<void> = Promise.resolve();
@@ -38,9 +39,9 @@ export class Collection<T extends Document> {
     private idIndex = new Map<string, number>();
     private indexedDataRef: WithId<T>[] | null = null;
 
-    constructor(name: string, prefix = "browserdb_") {
+    constructor(name: string, options: CollectionOptions = {}) {
         this.collectionName = name;
-        this.storage = new Storage<WithId<T>>(`${prefix}${name}`, name);
+        this.storage = new HybridStorageEngine<WithId<T>>(name, options);
         this.storage.setOnExternalChange(() => {
             this.notifyListeners();
         });
@@ -48,21 +49,43 @@ export class Collection<T extends Document> {
 
     subscribe(filter: TFilter<T> = {}, callback: SubscriptionCallback<T>, options?: FindOptions<T>): () => void {
         const listener = { filter, options, callback };
-        this.listeners.add(listener);
-        const cached = this.storage.readCached();
-        if (cached !== null) {
-            const now = Date.now();
-            const validData = cached.filter(doc => !doc.__expiresAt || doc.__expiresAt >= now);
-            const results = this.filterData(validData, filter);
-            try {
-                callback(this.clone(this.applyFindOptions(results, options)));
-            } catch (e) {
-                console.error(e);
+
+        const deliverInitial = () => {
+            const cached = this.storage.readCached ? this.storage.readCached() : null;
+            if (cached !== null) {
+                const now = Date.now();
+                const validData = cached.filter(doc => !doc.__expiresAt || doc.__expiresAt >= now);
+                const results = this.filterData(validData, filter);
+                try {
+                    callback(this.clone(this.applyFindOptions(results, options)));
+                } catch (e) {
+                    console.error(e);
+                }
+            } else {
+                this.find(filter, options).then(callback).catch(console.error);
             }
+        };
+
+        let deferredAdd: (() => void) | null = null;
+        if (this.storage.isBatching) {
+            const self = this;
+            deferredAdd = () => {
+                deliverInitial();
+                self.listeners.add(listener);
+            };
+            this.pendingSubscriptions.push(deferredAdd);
         } else {
-            this.find(filter, options).then(callback).catch(console.error);
+            deliverInitial();
+            this.listeners.add(listener);
         }
+
         return () => {
+            if (deferredAdd) {
+                const idx = this.pendingSubscriptions.indexOf(deferredAdd);
+                if (idx !== -1) {
+                    this.pendingSubscriptions.splice(idx, 1);
+                }
+            }
             this.listeners.delete(listener);
         };
     }
@@ -106,13 +129,24 @@ export class Collection<T extends Document> {
     }
 
     async commitBatch() {
-        if (await this.storage.commitBatch()) {
+        const result = await this.storage.commitBatch();
+        if (result) {
             this.notifyListeners();
         }
+        this.flushPendingSubscriptions();
+        return result;
     }
 
     rollbackBatch() {
         this.storage.rollbackBatch();
+        this.flushPendingSubscriptions();
+    }
+
+    private flushPendingSubscriptions() {
+        while (this.pendingSubscriptions.length) {
+            const cb = this.pendingSubscriptions.shift()!;
+            try { cb(); } catch (e) { console.error(e); }
+        }
     }
 
     private clone<U>(item: U): U {
@@ -143,7 +177,7 @@ export class Collection<T extends Document> {
     }
 
     private async getValidData(triggerCleanup = true): Promise<WithId<T>[]> {
-        const data = await this.storage.read();
+        const data = await this.storage.getAll();
         const now = Date.now();
         let hasExpired = false;
 
@@ -156,9 +190,15 @@ export class Collection<T extends Document> {
         });
 
         if (hasExpired && triggerCleanup) {
-            this.runLocked(async () => {
-                await this.storage.write(validData);
-            }).catch(() => {});
+            try {
+                this.storage.beginBatch();
+                await this.storage.clear();
+                await this.storage.putMany(validData);
+                await this.storage.commitBatch();
+                this.notifyListeners();
+            } catch (e) {
+                this.storage.rollbackBatch();
+            }
         }
 
         return validData;
@@ -300,8 +340,6 @@ export class Collection<T extends Document> {
      */
     async insertOne(document: T, options?: InsertOptions): Promise<WithId<T>> {
         return this.runLocked(async () => {
-            const data = await this.getValidData(false);
-
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             let cloned = this.clone(document) as any;
 
@@ -316,7 +354,8 @@ export class Collection<T extends Document> {
             }
             const newId = typeof cloned._id === "string" ? cloned._id : uuid();
 
-            if (data.some(doc => doc._id === newId)) {
+            const existing = await this.storage.get(newId);
+            if (existing) {
                 throw new DuplicateKeyError(newId, this.collectionName);
             }
 
@@ -326,8 +365,7 @@ export class Collection<T extends Document> {
                 newDoc.__expiresAt = Date.now() + options.ttlMs;
             }
 
-            data.push(newDoc);
-            await this.storage.write(data);
+            await this.storage.put(newDoc);
             this.notifyListeners();
 
             for (const hook of this.hooks.afterInsert) {
@@ -344,7 +382,6 @@ export class Collection<T extends Document> {
      */
     async insertMany(documents: T[], options?: InsertOptions): Promise<WithId<T>[]> {
         return this.runLocked(async () => {
-            const data = await this.getValidData(false);
             const newDocs: WithId<T>[] = [];
             const seenIds = new Set<string>();
             const now = Date.now();
@@ -363,7 +400,11 @@ export class Collection<T extends Document> {
                 }
                 const newId = typeof cloned._id === "string" ? cloned._id : uuid();
 
-                if (seenIds.has(newId) || data.some(d => d._id === newId)) {
+                if (seenIds.has(newId)) {
+                    throw new DuplicateKeyError(newId, this.collectionName);
+                }
+                const existing = await this.storage.get(newId);
+                if (existing) {
                     throw new DuplicateKeyError(newId, this.collectionName);
                 }
 
@@ -375,8 +416,7 @@ export class Collection<T extends Document> {
                 newDocs.push(newDoc);
             }
 
-            data.push(...newDocs);
-            await this.storage.write(data);
+            await this.storage.putMany(newDocs);
             this.notifyListeners();
 
             for (const newDoc of newDocs) {
@@ -390,16 +430,20 @@ export class Collection<T extends Document> {
     }
 
     async find(filter: TFilter<T> = {}, options?: FindOptions<T>): Promise<WithId<T>[]> {
-        const data = await this.getValidData(true);
-        const filtered = data.filter(doc => Query.matches(doc, filter));
-        return this.clone(this.applyFindOptions(filtered, options));
+        return this.runLocked(async () => {
+            const data = await this.getValidData(true);
+            const filtered = data.filter(doc => Query.matches(doc, filter));
+            return this.clone(this.applyFindOptions(filtered, options));
+        });
     }
 
     async findOne(filter: TFilter<T>, options?: FindOptions<T>): Promise<WithId<T> | null> {
-        const data = await this.getValidData(true);
-        const filtered = data.filter(doc => Query.matches(doc, filter));
-        const processed = this.applyFindOptions(filtered, options);
-        return processed.length > 0 ? this.clone(processed[0]) : null;
+        return this.runLocked(async () => {
+            const data = await this.getValidData(true);
+            const filtered = data.filter(doc => Query.matches(doc, filter));
+            const processed = this.applyFindOptions(filtered, options);
+            return processed.length > 0 ? this.clone(processed[0]) : null;
+        });
     }
 
     /**
@@ -492,8 +536,7 @@ export class Collection<T extends Document> {
 
             if (modified) {
                 this.validateSchema(workingDoc);
-                data[index] = workingDoc;
-                await this.storage.write(data);
+                await this.storage.put(workingDoc);
                 this.notifyListeners();
                 for (const hook of this.hooks.afterUpdate) {
                     await hook(workingDoc);
@@ -514,16 +557,19 @@ export class Collection<T extends Document> {
             }
 
             const originalId = data[index]._id;
+            const originalExpiresAt = data[index].__expiresAt;
             
             let workingDoc = { ...(this.clone(replacement) as Record<string, unknown>), _id: originalId } as WithId<T>;
+            if (originalExpiresAt !== undefined) {
+                workingDoc.__expiresAt = originalExpiresAt;
+            }
             for (const hook of this.hooks.beforeUpdate) {
                 workingDoc = await hook(workingDoc);
             }
             
             this.validateSchema(workingDoc);
             
-            data[index] = workingDoc;
-            await this.storage.write(data);
+            await this.storage.put(workingDoc);
             this.notifyListeners();
             
             for (const hook of this.hooks.afterUpdate) {
@@ -551,9 +597,7 @@ export class Collection<T extends Document> {
                 await hook(docToDelete);
             }
 
-            data.splice(index, 1);
-            this.indexedDataRef = null; // Reset index since array reference is mutated
-            await this.storage.write(data);
+            await this.storage.delete(docToDelete._id);
             this.notifyListeners();
             
             for (const hook of this.hooks.afterDelete) {
@@ -565,8 +609,10 @@ export class Collection<T extends Document> {
     }
 
     async count(): Promise<number> {
-        const data = await this.getValidData(true);
-        return data.length;
+        return this.runLocked(async () => {
+            const data = await this.getValidData(true);
+            return data.length;
+        });
     }
 
     /**
@@ -577,5 +623,13 @@ export class Collection<T extends Document> {
             await this.storage.clear();
             this.notifyListeners();
         });
+    }
+
+    close(): void {
+        this.storage.close();
+    }
+
+    async destroy(): Promise<void> {
+        await this.storage.destroy();
     }
 }

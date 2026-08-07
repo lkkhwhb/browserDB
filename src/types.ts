@@ -1,6 +1,6 @@
 /**
  * BrowserDB
- * A lightweight, dependency-free, MongoDB-inspired document database
+ * A lightweight, MongoDB-inspired document database
  * built on top of the browser's localStorage.
  *
  * Copyright (c) 2026–present Bhargav Barman
@@ -82,4 +82,47 @@ export interface DatabaseStats {
     percentUsed: string;
     collections: number;
     documents: number;
+}
+
+export type BackendType = 'auto' | 'localStorage' | 'indexedDB';
+export type EvictionPolicy = 'none' | 'ttl' | 'lru' | 'fifo';
+
+export interface CollectionOptions {
+    backend?: BackendType;
+    eviction?: EvictionPolicy;
+}
+
+export interface StorageEngine<T> {
+    get(id: string): Promise<T | undefined>;
+    getAll(): Promise<T[]>;
+
+    put(document: T): Promise<void>;
+    putMany(documents: T[]): Promise<void>;
+
+    delete(id: string): Promise<void>;
+    deleteMany(ids: string[]): Promise<void>;
+
+    clear(): Promise<void>;
+    setOnExternalChange(callback: () => void): void;
+
+    isBatching: boolean;
+    beginBatch(): void;
+    commitBatch(): Promise<boolean>;
+    rollbackBatch(): void;
+
+    // Optional sync reads if supported by engine
+    readCached?(): T[] | null;
+
+    // Optional diagnostic capabilities
+    estimate?(): Promise<StorageEstimate>;
+    close(): void;
+    destroy(): Promise<void>;
+}
+
+export interface StorageInfo {
+    backend: string;
+    usedBytes: number;
+    estimatedQuota: number;
+    compressed: boolean;
+    collections: string[];
 }

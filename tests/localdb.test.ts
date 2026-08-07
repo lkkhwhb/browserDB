@@ -24,6 +24,23 @@ Object.defineProperty(globalThis, "localStorage", {
     writable: true
 });
 
+// Mock indexedDB for Node environment testing
+const indexedDBMock = {
+    deleteDatabase: (name: string) => {
+        return {
+            onsuccess: null,
+            onerror: null,
+            set onsuccess(cb: any) { setTimeout(cb, 0); },
+        };
+    },
+    databases: async () => []
+};
+
+Object.defineProperty(globalThis, "indexedDB", {
+    value: indexedDBMock,
+    writable: true
+});
+
 Object.defineProperty(globalThis, "window", {
     value: globalThis,
     writable: true
@@ -166,10 +183,10 @@ describe("BrowserDB Test Suite", () => {
         await db.collection("col2").insertOne({ b: 2 });
 
         expect(db.has("col1")).toBe(true);
-        db.dropCollection("col1");
+        await db.dropCollection("col1");
         expect(db.has("col1")).toBe(false);
 
-        db.clear();
+        await db.clear();
         expect(db.has("col2")).toBe(false);
     });
 

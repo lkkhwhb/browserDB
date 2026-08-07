@@ -1,6 +1,6 @@
 /**
  * BrowserDB
- * A lightweight, dependency-free, MongoDB-inspired document database
+ * A lightweight, MongoDB-inspired document database
  * built on top of the browser's localStorage.
  *
  * Copyright (c) 2026–present Bhargav Barman

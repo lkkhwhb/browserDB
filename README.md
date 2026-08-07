@@ -1,87 +1,560 @@
-# <img src="assets/browserdb.png" width="36" align="center" style="vertical-align: middle; margin-right: 8px;"> BrowserDB (`@lkkhwhb/browserdb`)
+# BrowserDB
 
-> **🚨 Pre-Release Notice**: The current version is a **Beta Candidate** (`@lkkhwhb/browserdb@1.2.1-beta.0`). Please use `@lkkhwhb/browserdb@1.2.1-beta.0` across your entire project.
-> 
-> 
+> **⚠️ Beta Release**: This documentation covers `@lkkhwhb/browserdb@2.0.1-beta.0`. APIs are subject to change until the stable release.
 
-A lightweight client-side database optimized for the `localStorage` backend. BrowserDB provides a clean, strongly typed API for storing and querying JSON documents without dealing directly with `localStorage` or manual serialization.
-
----
-
-## Features
-
-* **🛡️ Schema Validation**: Enforce strict data shapes at runtime with MongoDB-compliant `$jsonSchema` validators via `setValidator()`.
-
-
-* **🪝 Middleware Hooks**: Intercept operations using `beforeInsert`, `afterUpdate`, and more!
-
-
-* **🔄 Reactive Subscriptions**: Automatically sync UIs across tabs in real-time when data changes.
-
-
-* **📦 Transactions & Batching**: Group multiple database writes in memory and flush to disk in a single transaction.
-
-
-* **🔍 Fluent Queries**: Supports pagination, sorting, and projection directly in `find()`.
-
-
-* **⚡ In-Memory Caching**: Automatically caches documents in memory for instant read performance while perfectly synchronizing cross-tab updates.
-
-
-* **🔥 Auto-Compression**: Automatically compresses all documents through native `CompressionStream` (deflate), then packs the binary via a custom **UTF-16 bit-packer**, giving you **up to 60MB of usable space** (~12x extra space) while staying under the browser's 5MB limit!
-
-
-* **⏱️ TTL (Time To Live)**: Documents can automatically self-destruct after a specified time to keep your storage quota clean.
-
-
-* **🖼️ Hybrid Media Engine (Gallery API)**: The built-in `db.gallery()` safely manages high-res binary images/videos using IndexedDB, avoiding the 5MB `localStorage` limit and Base64 size bloat. It provides automatic `URL.createObjectURL` parsing for instant 0-boilerplate rendering.
-
-
-* **Zero External Config**: Works out of the box in modern browsers, Vite (React TS / JS), Next.js, and vanilla applications.
-
-
-* **Direct CDN Support**: Import via standard HTML `<script>` tags (`window.BrowserDB`).
-
-
-* **Modular Architecture**: Cleanly architected into single-responsibility modules in `src/`.
-
-
-* **MongoDB-Inspired API**: Intuitive collections and query filtering.
-
-
-* **Cryptographically Secure UUIDs**: Uses official `uuid` (v4) with `crypto.randomUUID` fallback.
-
-
-* **Automatic Serialization**: Handles JSON parsing/stringify seamlessly.
-
-
-* **Strong TypeScript Support**: Complete type safety for document structures.
-
-
-* **Custom Error Classes**: Specific error types for quota exceeded, corruption, duplicates, etc.
-
-
-* **Storage Statistics**: Introspect collection sizes, total documents, and quota metrics.
-
-
+A lightweight, MongoDB-inspired client-side document database with hybrid storage (localStorage + IndexedDB), reactive subscriptions, schema validation, and full TypeScript support.  
+Designed for browser applications that need a simple yet powerful offline or persistent data layer.
 
 ---
 
-## Installation & Import Options
+## Table of Contents
 
-### 1. NPM / Vite / React (TypeScript & JavaScript)
+- [Installation](#installation)
+- [Getting Started](#getting-started)
+- [Collection API](#collection-api)
+  - [insertOne](#insertone)
+  - [insertMany](#insertmany)
+  - [find](#find)
+  - [findOne](#findone)
+  - [updateOne](#updateone)
+  - [replaceOne](#replaceone)
+  - [deleteOne](#deleteone)
+  - [count](#count)
+  - [clear](#clear)
+- [Query Syntax](#query-syntax)
+- [Update Operators](#update-operators)
+- [Reactive Subscriptions](#reactive-subscriptions)
+- [Transactions](#transactions)
+- [Middleware Hooks](#middleware-hooks)
+- [Schema Validation](#schema-validation)
+- [Lifecycle Management](#lifecycle-management)
+- [Database API](#database-api)
+- [Error Handling](#error-handling)
+- [Storage Statistics](#storage-statistics)
+- [React Integration](#react-integration)
+- [Architecture](#architecture)
+- [Browser Compatibility](#browser-compatibility)
+- [Limitations](#limitations)
+- [Breaking Changes in v2.0](#breaking-changes-in-v20)
+- [License](#license)
 
-Install the beta candidate via npm:
+---
+
+## Installation
+
+### npm / Yarn / pnpm
 
 ```bash
-npm install @lkkhwhb/browserdb@1.2.1-beta.0
-
+npm install @lkkhwhb/browserdb@2.0.1-beta.0
 ```
 
-#### React (TypeScript) Component Example
+Import the library into your TypeScript or JavaScript project:
+
+```ts
+import { BrowserDB } from "@lkkhwhb/browserdb";
+```
+
+### CDN (Browser Globals)
+
+Add a `<script>` tag directly to your HTML page. The library exposes `window.BrowserDB`.
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/@lkkhwhb/browserdb@2.0.1-beta.0/dist/browserdb.global.js"></script>
+<script>
+  const db = new BrowserDB.BrowserDB();
+</script>
+```
+
+The CDN bundle includes all necessary code (the optional `uuid` package is bundled). No additional dependencies are required at runtime.
+
+---
+
+## Getting Started
+
+Create a database instance and define a typed collection. Every operation is asynchronous.
+
+```ts
+import { BrowserDB } from "@lkkhwhb/browserdb";
+
+// Define your document shape
+interface User {
+  name: string;
+  age: number;
+  email?: string;
+}
+
+const db = new BrowserDB();
+const users = db.collection<User>("users");
+
+// Insert a document – an _id is auto-generated if not provided
+const newUser = await users.insertOne({ name: "Alice", age: 30 });
+console.log(newUser._id); // e.g. "550e8400-e29b-41d4-a716-446655440000"
+```
+
+Collections are created automatically on first access. You can optionally pass configuration options to control the storage backend and eviction policy (see [Database API](#database-api)).
+
+---
+
+## Collection API
+
+### insertOne
+
+**Signature**  
+`collection.insertOne(doc: T, options?: InsertOptions): Promise<WithId<T>>`
+
+Inserts a single document. If `_id` is present it must be a string; duplicates throw `DuplicateKeyError`.  
+Pass `ttlMs` inside `options` to set a time‑to‑live (in milliseconds).
+
+```ts
+// Auto-generated ID
+const doc1 = await users.insertOne({ name: "Bob", age: 25 });
+
+// Custom ID
+const doc2 = await users.insertOne({ _id: "custom-id", name: "Charlie", age: 22 });
+
+// With TTL (expires after 1 hour)
+await users.insertOne(
+  { name: "Session" },
+  { ttlMs: 1000 * 60 * 60 }
+);
+```
+
+### insertMany
+
+**Signature**  
+`collection.insertMany(docs: T[], options?: InsertOptions): Promise<WithId<T>[]>`
+
+Inserts multiple documents atomically. Duplicate IDs within the batch or existing in storage cause a `DuplicateKeyError` before any write.
+
+```ts
+const newDocs = await users.insertMany([
+  { name: "Dana", age: 28 },
+  { name: "Evan", age: 35 }
+]);
+```
+
+### find
+
+**Signature**  
+`collection.find(filter?: Filter<T>, options?: FindOptions<T>): Promise<WithId<T>[]>`
+
+Returns all documents matching a filter. Without arguments it returns every document.
+
+**Options**:
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `sort` | `Record<keyof T, 1 \| -1>` | Sort by one or more fields. `1` for ascending, `-1` for descending. |
+| `skip` | `number` | Number of documents to skip (for pagination). |
+| `limit` | `number` | Maximum number of documents to return. |
+| `projection` | `Record<keyof T, 1 \| 0>` | Inclusive (`1`) or exclusive (`0`) field selection. `_id` is always included. |
+
+```ts
+// All documents
+const all = await users.find();
+
+// Adults, sorted by age descending, first page of 10
+const adults = await users.find(
+  { age: { $gte: 18 } },
+  {
+    sort: { age: -1 },
+    skip: 0,
+    limit: 10,
+    projection: { name: 1, email: 1 }
+  }
+);
+```
+
+### findOne
+
+**Signature**  
+`collection.findOne(filter: Filter<T>, options?: FindOptions<T>): Promise<WithId<T> | null>`
+
+Returns the first document that matches the filter, or `null` if nothing matches. Accepts the same `options` as `find`.
+
+```ts
+const user = await users.findOne({ name: "Alice" });
+if (user) {
+  console.log(user.email);
+}
+```
+
+### updateOne
+
+**Signature**  
+`collection.updateOne(filter: Filter<T>, update: Update<T>): Promise<{ matched: boolean; modified: boolean }>`
+
+Updates the first document matching the filter using the specified update operators (see [Update Operators](#update-operators)).  
+Returns `matched` (did a document match?) and `modified` (did values actually change?).
+
+```ts
+const result = await users.updateOne(
+  { name: "Alice" },
+  { $set: { age: 31 }, $inc: { loginCount: 1 } }
+);
+// result = { matched: true, modified: true }
+```
+
+**Important:** The `_id` field is immutable and cannot be changed via `$set`.
+
+### replaceOne
+
+**Signature**  
+`collection.replaceOne(filter: Filter<T>, replacement: T): Promise<{ matched: boolean; modified: boolean }>`
+
+Replaces the **entire document** that matches the filter with the provided object. The original `_id` is preserved, and if the original document had a TTL (`__expiresAt`) it is kept in the replacement.  
+This is useful when you want to swap the whole content while keeping the same identity.
+
+```ts
+await users.replaceOne(
+  { name: "Alice" },
+  { name: "Alicia", age: 32, email: "alicia@example.com" }
+);
+// _id and __expiresAt are inherited from the original document
+```
+
+### deleteOne
+
+**Signature**  
+`collection.deleteOne(filter: Filter<T>): Promise<{ deletedCount: number }>`
+
+Deletes the first document matching the filter. Returns the number of deleted documents (0 or 1).
+
+```ts
+const result = await users.deleteOne({ name: "Bob" });
+// result = { deletedCount: 1 }
+```
+
+### count
+
+**Signature**  
+`collection.count(): Promise<number>`
+
+Returns the total number of documents in the collection.
+
+```ts
+const total = await users.count();
+```
+
+### clear
+
+**Signature**  
+`collection.clear(): Promise<void>`
+
+Removes all documents from the collection. The collection itself still exists and can be used again.
+
+```ts
+await users.clear();
+```
+
+---
+
+## Query Syntax
+
+Filters are plain objects where keys correspond to document fields. Values can be literal (exact match) or query operator objects prefixed with `$`.  
+Nested objects are compared using a deep equality algorithm (handles `undefined` correctly).
+
+**Comparison operators**
+
+| Operator | Description | Supported Types |
+|----------|-------------|-----------------|
+| `$eq`    | Deep equality (same as literal value) | Any |
+| `$ne`    | Not equal | Any |
+| `$gt`    | Greater than | `string`, `number` |
+| `$gte`   | Greater than or equal | `string`, `number` |
+| `$lt`    | Less than | `string`, `number` |
+| `$lte`   | Less than or equal | `string`, `number` |
+| `$in`    | Value is in an array | Any |
+| `$nin`   | Value is **not** in an array | Any |
+
+**Logical operators**
+
+- `$and` – array of filters, all must match.
+- `$or`  – array of filters, at least one must match.
+
+**Example**
+
+```ts
+const result = await users.find({
+  age: { $gte: 18, $lte: 65 },
+  name: { $ne: "Bob" },
+  $or: [
+    { status: "active" },
+    { role: "admin" }
+  ]
+});
+```
+
+Nested object filters are also supported and are compared with deep equality:
+
+```ts
+await users.find({ address: { city: "New York" } });
+```
+
+---
+
+## Update Operators
+
+Update operators are passed as the second argument to `updateOne`. Multiple operators can be combined in a single call.
+
+| Operator | Description |
+|----------|-------------|
+| `$set`   | Set the value of a field. If the field does not exist it is created. |
+| `$inc`   | Increment a numeric field by a given value. Throws if the field is not a number. |
+| `$unset` | Remove a field from the document. Pass `1` or `true` for each field to unset. |
+| `$push`  | Append a value to an array field. Creates the array if it does not exist. |
+| `$pull`  | Remove all elements from an array that match a value or an object (uses `deepEqual`). |
+
+**Example**
+
+```ts
+await users.updateOne(
+  { name: "Alice" },
+  {
+    $set: { status: "premium" },
+    $inc: { points: 50 },
+    $unset: { tempToken: 1 },
+    $push: { tags: "vip" },
+    $pull: { tags: "old-tag" }
+  }
+);
+```
+
+---
+
+## Reactive Subscriptions
+
+Subscribe to a filter and receive real‑time updates whenever matching documents are inserted, updated, deleted, or expire (via TTL). The callback fires immediately with the current result.
+
+```ts
+const unsubscribe = users.subscribe(
+  { status: "active" },
+  (activeUsers) => {
+    // activeUsers is a fresh array of WithId<User>
+    console.log(`Active users: ${activeUsers.length}`);
+  }
+);
+
+// Later, when the component unmounts
+unsubscribe();
+```
+
+**Cross‑tab synchronization** works automatically: changes made in one browser tab notify all other tabs using the same collection (via `localStorage` events or `BroadcastChannel`).
+
+**Batch‑aware behavior:** If a subscription is created while a transaction is in progress, the initial data is delivered only after the transaction commits, ensuring consistency.
+
+---
+
+## Transactions
+
+Group multiple write operations across one or more collections into an atomic unit. If any collection fails to commit, all collections are rolled back to their pre‑transaction state.
+
+```ts
+await db.transaction(async () => {
+  await users.insertOne({ name: "Eve" });
+  await orders.deleteOne({ userId: "xyz" });
+  // If either operation fails, both are undone
+});
+```
+
+**How it works:**
+- A snapshot of every involved collection is taken before the transaction begins.
+- All mutations inside the callback are performed in memory (batched).
+- When the callback finishes successfully, all batches are committed to storage.
+- If a commit fails, all collections are rolled back and the snapshot is restored.
+
+Nested transactions are not supported; calling `transaction` while another is active throws a `DatabaseError`.
+
+---
+
+## Middleware Hooks
+
+Hooks allow you to intercept and modify documents during CRUD operations. They can be synchronous or asynchronous.
+
+| Hook | Signature | Fires |
+|------|-----------|-------|
+| `beforeInsert` | `(doc: T) => T \| Promise<T>` | Before a new document is saved |
+| `afterInsert`  | `(doc: WithId<T>) => void \| Promise<void>` | After a successful insert |
+| `beforeUpdate` | `(doc: WithId<T>) => WithId<T> \| Promise<WithId<T>>` | Before an existing document is modified |
+| `afterUpdate`  | `(doc: WithId<T>) => void \| Promise<void>` | After an update completes |
+| `beforeDelete` | `(doc: WithId<T>) => void \| Promise<void>` | Before a document is removed |
+| `afterDelete`  | `(doc: WithId<T>) => void \| Promise<void>` | After a deletion |
+
+Each hook registration returns an unsubscribe function:
+
+```ts
+const removeHook = users.beforeInsert(async (doc) => {
+  doc.createdAt = new Date().toISOString();
+  return doc;
+});
+
+// Remove the hook later
+removeHook();
+```
+
+---
+
+## Schema Validation
+
+Define a MongoDB‑style `$jsonSchema` to enforce document structure at runtime. Violations throw a `ValidationError` before any write occurs.
+
+```ts
+users.setValidator({
+  $jsonSchema: {
+    bsonType: "object",
+    required: ["name", "age"],
+    properties: {
+      name: { bsonType: "string" },
+      age: { bsonType: "number", minimum: 18 },
+      email: { bsonType: "string" },
+      tags: {
+        bsonType: "array",
+        items: { bsonType: "string" }
+      }
+    }
+  }
+});
+```
+
+You can use `bsonType` (MongoDB style) or `type`, which supports `"string"`, `"number"`, `"boolean"`, `"object"`, `"array"`, `"null"`, `"double"`, `"int"`, `"bool"`.  
+`required`, `enum`, `minimum`, `maximum`, `items`, and nested `properties` are all supported.
+
+---
+
+## Lifecycle Management
+
+BrowserDB manages underlying storage engines (localStorage and IndexedDB) as well as broadcast channels. To properly release resources or permanently delete data, use the following methods.
+
+**Collection‑level**
+
+- `collection.close()` – Closes the underlying IndexedDB connection and broadcast channel. No data is deleted.
+- `collection.destroy(): Promise<void>` – Calls `close()` and permanently deletes all persistent data (including the metadata key).
+
+```ts
+users.close();
+await users.destroy();
+```
+
+**Database‑level**
+
+- `db.dropCollection(name: string): Promise<void>` – Removes a collection entirely (data + metadata) from every storage backend.
+- `db.clear(): Promise<void>` – Destroys all collections and removes all BrowserDB keys from localStorage and IndexedDB.
+
+```ts
+await db.dropCollection("users");
+await db.clear();
+```
+
+Both `dropCollection` and `clear` are asynchronous; you must `await` them.
+
+---
+
+## Database API
+
+`new BrowserDB()` creates a new database instance. It requires a browser environment (`window` and `localStorage`).
+
+**Methods**
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `collection` | `<T>(name: string, options?: CollectionOptions): Collection<T>` | Creates or retrieves a typed collection. |
+| `has` | `(name: string): boolean` | Returns `true` if the collection exists (checks both localStorage and IndexedDB metadata). |
+| `dropCollection` | `(name: string): Promise<void>` | Permanently removes the collection. |
+| `clear` | `(): Promise<void>` | Removes all collections and data. |
+| `stats` | `(): Promise<DatabaseStats>` | Returns storage usage and document counts. |
+| `storage.info` | `(): Promise<StorageInfo>` | Provides browser‑level storage estimates and available collections. |
+| `transaction` | `(callback: () => Promise<void>): Promise<void>` | Runs a group of writes atomically. |
+
+**CollectionOptions**
+
+```ts
+interface CollectionOptions {
+  backend?: "auto" | "localStorage" | "indexedDB";  // default "auto"
+  eviction?: "none" | "ttl" | "lru" | "fifo";      // default "none"
+}
+```
+
+- `backend`: which storage engine to prefer. `"auto"` starts with localStorage and migrates to IndexedDB on quota pressure.
+- `eviction`: automatic data removal strategy when storage is full. `"ttl"` removes documents closest to expiry, `"fifo"` removes oldest first, `"lru"` approximates least‑recently‑used.
+
+```ts
+const settings = db.collection<User>("settings", {
+  backend: "indexedDB",
+  eviction: "lru"
+});
+```
+
+---
+
+## Error Handling
+
+All errors extend `DatabaseError`. You can import them directly and use `instanceof` checks.
+
+| Error Class | Thrown When |
+|-------------|-------------|
+| `DatabaseError` | General failure (missing APIs, invalid operations) |
+| `QuotaExceededError` | localStorage quota exceeded and migration/eviction failed |
+| `DataCorruptionError` | Stored data cannot be parsed |
+| `DuplicateKeyError` | A document with the same `_id` already exists |
+| `ValidationError` | Document failed `$jsonSchema` validation |
+
+```ts
+import { DuplicateKeyError, QuotaExceededError } from "@lkkhwhb/browserdb";
+
+try {
+  await users.insertOne({ _id: "existing-id", name: "Test" });
+} catch (error) {
+  if (error instanceof DuplicateKeyError) {
+    console.warn("ID already taken");
+  } else if (error instanceof QuotaExceededError) {
+    console.error("Storage full");
+  } else {
+    throw error;
+  }
+}
+```
+
+---
+
+## Storage Statistics
+
+Use `db.stats()` to get a snapshot of storage usage.
+
+```ts
+const stats = await db.stats();
+console.log(stats);
+```
+
+**Return type** (`DatabaseStats`):
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `usedBytes` | `number` | Estimated bytes occupied by BrowserDB data |
+| `usedKB` | `string` | Formatted KB string (e.g. `"2.50 KB"`) |
+| `usedMB` | `string` | Formatted MB string (e.g. `"0.01 MB"`) |
+| `quotaBytes` | `number` | Total storage quota for the origin (from `navigator.storage.estimate()`) |
+| `availableBytes` | `number` | `quotaBytes - usedBytes` |
+| `percentUsed` | `string` | Percentage of quota used |
+| `collections` | `number` | Number of BrowserDB collections |
+| `documents` | `number` | Total number of documents across all collections |
+
+`usedBytes` is calculated by measuring the raw bytes of BrowserDB’s `localStorage` keys (including metadata). The quota values are provided by the browser when available.
+
+**`db.storage.info()`** gives additional backend details:
+
+```ts
+const info = await db.storage.info();
+// { backend: "hybrid", usedBytes: 1048576, estimatedQuota: 52428800, compressed: true, collections: ["users"] }
+```
+
+---
+
+## React Integration
+
+BrowserDB works with any framework. Here is a minimal React hook example using subscriptions.
 
 ```tsx
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { BrowserDB, WithId } from "@lkkhwhb/browserdb";
 
 interface Task {
@@ -90,480 +563,111 @@ interface Task {
 }
 
 const db = new BrowserDB();
-const tasksCollection = db.collection<Task>("tasks");
+const tasks = db.collection<Task>("tasks");
 
-export const TaskApp: React.FC = () => {
-  const [tasks, setTasks] = useState<WithId<Task>[]>([]);
-  const [title, setTitle] = useState("");
+export function TaskList() {
+  const [items, setItems] = useState<WithId<Task>[]>([]);
 
   useEffect(() => {
-    const loadTasks = async () => {
-      setTasks(await tasksCollection.find());
-    };
-    loadTasks();
+    // Subscribe to all tasks; the callback fires immediately with current data
+    const unsub = tasks.subscribe({}, setItems);
+    return unsub; // cleanup on unmount
   }, []);
 
-  const addTask = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!title.trim()) return;
-    const newTask = await tasksCollection.insertOne({ title, completed: false });
-    setTasks([...tasks, newTask]);
-    setTitle("");
-  };
-
-  const toggleTask = async (id: string, currentStatus: boolean) => {
-    await tasksCollection.updateOne({ _id: id }, { $set: { completed: !currentStatus } });
-    setTasks(await tasksCollection.find());
+  const addTask = async (title: string) => {
+    await tasks.insertOne({ title, completed: false });
+    // no need to manually call setItems — subscription handles it
   };
 
   return (
-    <div>
-      <h2>Task Manager (BrowserDB @ 1.2.1-beta.0)</h2>
-      <form onSubmit={addTask}>
-        <input 
-          value={title} 
-          onChange={(e) => setTitle(e.target.value)} 
-          placeholder="New Task..." 
-        />
-        <button type="submit">Add</button>
-      </form>
-      <ul>
-        {tasks.map((task) => (
-          <li key={task._id} onClick={() => toggleTask(task._id, task.completed)}>
-            <span style={{ textDecoration: task.completed ? "line-through" : "none" }}>
-              {task.title}
-            </span>
-          </li>
-        ))}
-      </ul>
-    </div>
+    <ul>
+      {items.map((task) => (
+        <li key={task._id}>{task.title}</li>
+      ))}
+    </ul>
   );
-};
-
+}
 ```
+
+For simpler scenarios you can also manually fetch data with `useEffect` + `find()`.
 
 ---
 
-### 2. Direct CDN Access (Vanilla HTML / Browser Scripts)
+## Architecture
 
-Import the exact beta candidate directly into any HTML page using a pinned CDN link.
-
-#### jsDelivr CDN
-
-```html
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>BrowserDB Demo (v1.2.1-beta.0)</title>
-  <script src="https://cdn.jsdelivr.net/npm/@lkkhwhb/browserdb@1.2.1-beta.0/dist/browserdb.global.js"></script>
-</head>
-<body>
-  <h1>BrowserDB Notes</h1>
-
-  <input id="titleInput" type="text" placeholder="Title" />
-  <input id="contentInput" type="text" placeholder="Content" />
-  <button onclick="addNote()">Insert</button>
-
-  <h2>All Notes</h2>
-  <ul id="notesList"></ul>
-
-  <script>
-    const db = new window.BrowserDB.BrowserDB();
-    const notes = db.collection("notes");
-
-    async function render() {
-      const list = document.getElementById("notesList");
-      list.innerHTML = "";
-      const allNotes = await notes.find();
-      allNotes.forEach(n => {
-        const li = document.createElement("li");
-        li.textContent = n.title + ": " + n.content + " (" + n._id.slice(0,8) + "...)";
-        list.appendChild(li);
-      });
-    }
-
-    async function addNote() {
-      const title = document.getElementById("titleInput").value.trim();
-      const content = document.getElementById("contentInput").value.trim();
-      if (!title) return;
-      await notes.insertOne({ title, content });
-      document.getElementById("titleInput").value = "";
-      document.getElementById("contentInput").value = "";
-      render();
-    }
-
-    render();
-  </script>
-</body>
-</html>
-
-```
-
-#### unpkg CDN
-
-```html
-<script src="https://unpkg.com/@lkkhwhb/browserdb@1.2.1-beta.0/dist/browserdb.global.js"></script>
-
-```
-
----
-
-## Performance Benchmark
-
-We compared saving 1,000 JSON documents to native `localStorage` versus BrowserDB (`1.2.1-beta.0`).
-
-| Metric | Native `localStorage` | BrowserDB (`1.2.1-beta.0`) |
-| --- | --- | --- |
-| **Storage Size** | ~115.40 KB
-
- | **~8.80 KB** (~12x extra space)
-
- |
-| **Execution Time** | 1.00 ms (Blocking)
-
- | **8.10 ms** (Non-blocking)
-
- |
-
-> **The Tradeoff:** BrowserDB trades ~7ms of background processing to compress your data, unblocking the main UI thread while giving you ~12x more usable storage space!
-> 
-> 
-
----
-
-## Architecture Overview
-
-The `src/` directory is split into modular components for high maintainability:
+The library is composed of single‑responsibility modules:
 
 ```
 src/
-├── types.ts           # Document, Filter, Update, QueryOperators, DatabaseStats types
-├── errors.ts          # DatabaseError, QuotaExceededError, DataCorruptionError, DuplicateKeyError
+├── types.ts                  # All TypeScript types and interfaces
+├── errors.ts                 # Custom error classes
 ├── utils/
-│   └── uuid.ts        # Secure UUID generator using official uuid package & crypto.randomUUID
-├── query.ts           # Query matching engine ($gt, $gte, $lt, $lte, $ne, literal equality)
-├── storage.ts         # localStorage async abstraction with native CompressionStream
-├── collection.ts      # Collection class providing async document CRUD operations
-├── imageStore.ts      # Dedicated Image API with Canvas-based WebP optimization
-├── database.ts        # Main BrowserDB class managing collections & database stats
-└── index.ts           # Main entry point re-exporting all modules
-
+│   ├── uuid.ts               # UUID v4 generation (native crypto + optional fallback)
+│   ├── schemaSerializer.ts   # Row‑based JSON compression for localStorage
+│   └── utf16Packer.ts        # Binary → UTF‑16 packing for compression streams
+├── query.ts                  # Query matching engine (deep equality, operators)
+├── engines/
+│   ├── HybridStorageEngine.ts    # Orchestrator; handles migration from localStorage to IndexedDB
+│   ├── LocalStorageEngine.ts     # Deflate‑compressed localStorage backend
+│   └── IndexedDBEngine.ts        # IndexedDB backend with BroadcastChannel sync
+├── collection.ts             # CRUD operations, subscriptions, hooks, schema validation, lifecycle
+├── database.ts               # Collection management, transactions, statistics, global clear/drop
+└── index.ts                  # Public API re‑exports
 ```
+
+Build outputs:
+- **ESM** (`dist/index.mjs`)
+- **CommonJS** (`dist/index.js`)
+- **IIFE** (`dist/browserdb.global.js`) – for direct browser inclusion
 
 ---
 
-## Quick Start
+## Browser Compatibility
 
-```ts
-import { BrowserDB } from "@lkkhwhb/browserdb";
-
-type User = {
-    name: string;
-    age: number;
-};
-
-const db = new BrowserDB();
-const users = db.collection<User>("users");
-
-// Insert a document
-await users.insertOne({
-    name: "John",
-    age: 25
-});
-
-// Query documents
-const result = await users.findOne({
-    name: "John"
-});
-
-console.log(result);
-
-```
+| Browser | Supported |
+|---------|-----------|
+| Chrome 80+ | ✓ |
+| Firefox 75+ | ✓ |
+| Safari 13.1+ | ✓ |
+| Edge 80+ | ✓ |
+| Mobile Chrome | ✓ |
+| Mobile Safari | ✓ |
+| Internet Explorer | ✗ |
+| Node.js (SSR) | ✗ (requires a browser environment) |
 
 ---
 
-## CRUD Operations
+## Limitations
 
-### Insert One
+1. **Storage quota** – The hybrid engine automatically migrates to IndexedDB under pressure, but if forced to `localStorage` only, a `QuotaExceededError` may still be thrown unless an eviction policy is set.
 
-```ts
-await users.insertOne({
-    name: "Alice",
-    age: 20
-});
+2. **JSON serialisation** – Data is stored as JSON, so some JavaScript types are not preserved:
+   - `Date` becomes an ISO 8601 string; queries compare strings, not dates.
+   - `Map`, `Set` are serialised as empty objects `{}`.
+   - `BigInt` throws a `TypeError` during serialisation.
+   - `undefined` fields are omitted; use `null` instead.
+   - `Function` values are stripped.
 
-```
+3. **Multi‑tab race conditions** – The `localStorage` backend has no cross‑tab locking mechanism. Concurrent writes from different tabs may result in lost updates. Use the IndexedDB backend for safer concurrent workloads.
 
-### Insert with TTL (Time To Live)
-
-You can pass `ttlMs` to automatically expire a document. BrowserDB self-cleans; expired documents are silently stripped from queries and erased from disk.
-
-```ts
-await users.insertOne(
-    { name: "Session_Token", val: "xyz" },
-    { ttlMs: 1000 * 60 * 60 } // Automatically expires in 1 hour
-);
-
-```
-
-### Insert Many
-
-```ts
-await users.insertMany([
-    { name: "Alice", age: 20 },
-    { name: "Bob", age: 24 }
-]);
-
-```
-
-### Find All, Filter & Advanced Operators
-
-```ts
-// Find all documents
-const allUsers = await users.find();
-
-// Find matching documents with advanced operators
-const results = await users.find({
-    age: { $gte: 18, $lt: 65 },
-    role: { $in: ["admin", "editor"] },
-    $or: [
-        { status: "active" },
-        { status: "pending" }
-    ]
-});
-
-```
-
-Supported Query Operators:
-
-* `$eq`, `$ne`, `$gt`, `$gte`, `$lt`, `$lte`
-
-* `$in`, `$nin` (Array inclusion)
-
-
-* `$and`, `$or` (Logical operators)
-
-
-
-### Find Options (Sort, Limit, Skip, Projection)
-
-You can pass a second argument to `find()` and `findOne()` to precisely control the returned data:
-
-```ts
-const page2 = await users.find(
-    { status: "active" }, 
-    { 
-        sort: { age: -1 },       // Sort by age descending
-        skip: 10,                // Skip first 10
-        limit: 10,               // Limit to 10 results
-        projection: { name: 1 }  // Only return the name field (and _id)
-    }
-);
-
-```
-
-### Find One
-
-```ts
-const user = await users.findOne({ name: "Alice" });
-
-```
-
-### Update Operations
-
-BrowserDB supports full MongoDB-style update operators:
-
-```ts
-await users.updateOne(
-    { name: "Alice" },
-    { 
-        $set: { status: "active" },
-        $inc: { loginCount: 1 },         // Increment number
-        $push: { roles: "moderator" },   // Push to array
-        $unset: { temporaryToken: 1 }    // Delete a field
-    }
-);
-
-```
-
-You can also pull from arrays (`$pull`) or completely replace a document using `replaceOne(filter, newDoc)`.
-
-> Note: Document `_id` is immutable and cannot be altered during update.
-> 
-> 
-
-### Delete
-
-```ts
-await users.deleteOne({ name: "Alice" });
-
-```
-
-### Count & Clear Collection
-
-```ts
-const total = await users.count();
-await users.clear();
-
-```
+4. **Environment** – `window`, `localStorage`, and related Web APIs must be available. It cannot run in Web Workers or server‑side Node.js without polyfills.
 
 ---
 
-## Reactive Subscriptions (Real-time sync)
+## Breaking Changes in v2.0
 
-You can subscribe to collections to be instantly notified when data changes.
+If you are migrating from v1.x, note the following:
 
-* Perfect for React/Svelte state management.
-
-
-* **Automatically detects cross-tab changes** (if a user updates the database in Tab B, the UI in Tab A updates instantly).
-
-
-
-```ts
-const unsubscribe = users.subscribe({ status: "active" }, (activeUsers) => {
-    // This callback is fired immediately, and then 
-    // triggers whenever the active users change!
-    console.log("Active users updated:", activeUsers);
-});
-
-// Later, stop listening
-unsubscribe();
-
-```
-
----
-
-## Transactions & Batch Writes
-
-Group multiple database operations together in a Transaction to batch disk writes and compression steps.
-
-```ts
-await db.transaction(async () => {
-    await users.insertOne({ name: "Alice" });
-    await users.updateOne({ name: "Bob" }, { $set: { status: "active" } });
-    await users.deleteOne({ name: "Charlie" });
-}); // Automatically commits and writes to disk in a single pass!
-
-```
-
----
-
-## Middleware Hooks
-
-Intercept database operations to modify documents or trigger side effects:
-
-```ts
-// Modify data before inserting
-users.beforeInsert(async (doc) => {
-    return { ...doc, createdAt: Date.now() };
-});
-
-// Trigger a notification after update
-users.afterUpdate((doc) => {
-    showToast(`User ${doc.name} was updated!`);
-});
-
-```
-
-Available hooks: `beforeInsert`, `afterInsert`, `beforeUpdate`, `afterUpdate`, `beforeDelete`, `afterDelete`.
-
----
-
-## Schema Validation
-
-Define strict MongoDB-compliant `$jsonSchema` validators:
-
-```ts
-users.setValidator({
-    $jsonSchema: {
-        bsonType: "object",
-        required: ["name", "age"],
-        properties: {
-            name: {
-                bsonType: "string",
-                description: "must be a string and is required"
-            },
-            age: {
-                bsonType: "number",
-                minimum: 18,
-                description: "must be at least 18 and is required"
-            },
-            tags: {
-                bsonType: "array",
-                items: { bsonType: "string" }
-            }
-        }
-    }
-});
-
-```
-
----
-
-## Storage Statistics & Estimation
-
-```ts
-const stats = await db.stats();
-console.log(stats);
-
-```
-
-Returns:
-
-```ts
-{
-    usedBytes: 1024,
-    usedKB: "1.00 KB",
-    usedMB: "0.00 MB",
-    quotaBytes: 5242880,
-    availableBytes: 5241856,
-    percentUsed: "0.02%",
-    collections: 2,
-    documents: 15
-}
-
-```
-
----
-
-## Limitations & Where BrowserDB Will NOT Work
-
-1. **Non-Browser / Server-Side Environments (SSR / Node.js)**:
-* BrowserDB requires browser `window` and `localStorage`. Running directly on a Node.js server or during Next.js SSR without polyfilling `localStorage` will throw a `DatabaseError`.
-
-
-
-
-2. **Browser Storage Quota Limits (~5 MB)**:
-* Browsers enforce a ~5 MB limit per origin for `localStorage`. Exceeding this limit throws `QuotaExceededError`.
-
-
-
-
-3. **Private / Incognito Storage Blocking**:
-* Some legacy mobile browsers or strict iframe privacy modes block `localStorage` access entirely.
-
-
-
-
-4. **Unsupported Complex JavaScript Types**:
-* `Date` objects deserialize as strings.
-
-
-* `Map`, `Set`, `BigInt`, `Symbol`, `Function`, `undefined`, and class instances are not preserved.
-
-
-
-
+- `dropCollection(name)` and `clear()` are now **asynchronous** and return `Promise<void>`. Always `await` them.
+- `Collection.close()` and `Collection.destroy()` have been added to properly release resources; in v1.x there was no way to close IndexedDB connections.
+- Transactions now implement **snapshot‑based rollback**; previously writes were batched but not rolled back on failure.
+- `replaceOne` now preserves the document's TTL (`__expiresAt`) if it existed.
+- The internal `StorageEngine` interface requires `close()` and `destroy()` methods; custom engines must implement them.
 
 ---
 
 ## License
 
-Copyright (c) 2026–present Bhargav
-
-Licensed under the [MIT License](https://www.google.com/search?q=LICENSE).
+MIT © 2026–present Bhargav
 
 [GitHub Repository](https://github.com/lkkhwhb/browserDB)

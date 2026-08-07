@@ -65,6 +65,11 @@
     </header>
 
     <div class="controls">
+        <select id="backendSelect" style="padding: 8px; border-radius: 6px; background: #334155; color: white; border: 1px solid #475569; font-weight: bold; cursor: pointer;">
+            <option value="auto">Backend: Auto (Hybrid)</option>
+            <option value="localStorage">Backend: LocalStorage Only</option>
+            <option value="indexedDB">Backend: IndexedDB Only</option>
+        </select>
         <button onclick="runAllTests()">▶ Run All Tests</button>
         <button class="danger" onclick="clearDatabase()">🗑️ Clear Storage</button>
     </div>
@@ -153,8 +158,9 @@
                 // ----------------------------------------------------
                 // 1. DATABASE INITIALIZATION & UUID
                 // ----------------------------------------------------
-                log('--- 1. Initialization & Utilities ---', 'info', true);
-                const colA = db.collection('test_col_a');
+                const currentBackend = document.getElementById('backendSelect').value;
+                log(`--- 1. Initialization & Utilities (Backend: ${currentBackend}) ---`, 'info', true);
+                const colA = db.collection('test_col_a', { backend: currentBackend });
                 assert(colA !== null, 'Create Collection Instance');
                 
                 const uuid = db.uuid && db.uuid.v4 ? db.uuid.v4() : null;
@@ -265,7 +271,7 @@
                 // 7. MIDDLEWARE HOOKS
                 // ----------------------------------------------------
                 log('--- 7. Middleware Hooks ---', 'info', true);
-                const hookCol = db.collection('hook_test');
+                const hookCol = db.collection('hook_test', { backend: currentBackend });
                 await hookCol.clear();
 
                 let afterFired = false;
@@ -280,7 +286,7 @@
                 // 8. SCHEMA VALIDATION
                 // ----------------------------------------------------
                 log('--- 8. Schema Validation ---', 'info', true);
-                const valCol = db.collection('schema_test');
+                const valCol = db.collection('schema_test', { backend: currentBackend });
                 await valCol.clear();
                 valCol.setValidator({
                     $jsonSchema: {
@@ -322,9 +328,17 @@
                     asyncFired = true;
                 });
 
-                assert(syncFired === true, 'subscribe() Initial Fire Check', 'Was sync: ' + syncFired);
+                if (currentBackend === 'localStorage' || currentBackend === 'auto') {
+                    assert(syncFired === true, 'subscribe() Initial Fire Check (Sync)', 'Was sync: ' + syncFired);
+                } else {
+                    await new Promise(r => setTimeout(r, 20));
+                    assert(asyncFired === true, 'subscribe() Initial Fire Check (Async)');
+                    syncFired = false;
+                    asyncFired = false;
+                }
                 
                 await colA.insertOne({ name: 'SubTrigger' });
+                await new Promise(r => setTimeout(r, 20));
                 assert(asyncFired === true, 'subscribe() Reactive Update Trigger');
                 unsub();
 
@@ -357,7 +371,7 @@
                 // 13. EDGE CASES & TYPES
                 // ----------------------------------------------------
                 log('--- 13. Edge Cases & Special Characters ---', 'info', true);
-                const edgeCol = db.collection('edge_test');
+                const edgeCol = db.collection('edge_test', { backend: currentBackend });
                 await edgeCol.clear();
 
                 const unicodeString = 'Hello \u4e16\u754c \uD83C\uDF0D \uD83D\uDD25';
@@ -383,7 +397,7 @@
                 // 14. PERFORMANCE BENCHMARK (1,000 DOCS)
                 // ----------------------------------------------------
                 log('--- 14. Performance Benchmark (1,000 Docs) ---', 'info', true);
-                const perfCol = db.collection('perf_test');
+                const perfCol = db.collection('perf_test', { backend: currentBackend });
                 await perfCol.clear();
 
                 const perfItems = [];
@@ -402,6 +416,21 @@
                 log('Queried 1,000 Documents in ' + tFind.toFixed(2) + 'ms (Found ' + foundPerf.length + ')', 'info');
 
                 assert(foundPerf.length === 499, 'Benchmark Query Accuracy');
+
+                // ----------------------------------------------------
+                // 15. STORAGE INFO DIAGNOSTICS
+                // ----------------------------------------------------
+                log('--- 15. Storage Diagnostics ---', 'info', true);
+                if (db.storage && db.storage.info) {
+                    const info = await db.storage.info();
+                    log('Backend configured: ' + info.backend, 'info');
+                    log('Used Bytes (approx): ' + info.usedBytes, 'info');
+                    log('Estimated Quota: ' + info.estimatedQuota, 'info');
+                    log('Compression Engine Active: ' + info.compressed, 'info');
+                    log('Active Collections: ' + info.collections.join(', '), 'info');
+                } else {
+                    log('Storage Info API not available in this build.', 'warn');
+                }
 
                 log('--- ALL TEST MODULES FINISHED ---', 'info', true);
 

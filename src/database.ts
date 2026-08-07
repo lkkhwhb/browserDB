@@ -1,6 +1,6 @@
 /**
  * BrowserDB
- * A lightweight, dependency-free, MongoDB-inspired document database
+ * A lightweight, MongoDB-inspired document database
  * built on top of the browser's localStorage.
  *
  * Copyright (c) 2026–present Bhargav Barman
@@ -15,8 +15,23 @@
 import { Collection } from "./collection";
 import { DatabaseError } from "./errors";
 import { Gallery } from "./gallery";
-import { DatabaseStats, Document } from "./types";
+import { DatabaseStats, Document, CollectionOptions, StorageInfo } from "./types";
 import { uuid } from "./utils/uuid";
+
+function deepClone<T>(items: T[]): T[] {
+    return items.map(item => {
+        if (item === null || typeof item !== "object") return item;
+        if (Array.isArray(item)) return deepClone(item) as unknown as T;
+        if (item instanceof Date) return new Date(item.getTime()) as unknown as T;
+        const cloned: any = {};
+        for (const key in item) {
+            if (Object.prototype.hasOwnProperty.call(item, key)) {
+                cloned[key] = deepClone([(item as any)[key]])[0];
+            }
+        }
+        return cloned as T;
+    });
+}
 
 export class BrowserDB {
     private readonly prefix = "browserdb_";
@@ -25,6 +40,29 @@ export class BrowserDB {
     private isBatching = false;
 
     public uuid = { v4: uuid };
+
+    public storage = {
+        info: async (): Promise<StorageInfo> => {
+            let usedBytes = 0;
+            let estimatedQuota = 52428800; // 50MB default fallback
+            if (typeof navigator !== "undefined" && navigator.storage && navigator.storage.estimate) {
+                try {
+                    const estimate = await navigator.storage.estimate();
+                    if (estimate.usage !== undefined) usedBytes = estimate.usage;
+                    if (estimate.quota !== undefined) estimatedQuota = estimate.quota;
+                } catch {
+                    // Ignore estimation errors
+                }
+            }
+            return {
+                backend: "hybrid",
+                usedBytes,
+                estimatedQuota,
+                compressed: typeof CompressionStream !== "undefined",
+                collections: Array.from(this.collections.keys())
+            };
+        }
+    };
 
     constructor() {
         if (typeof window === "undefined" || typeof localStorage === "undefined") {
@@ -37,9 +75,9 @@ export class BrowserDB {
      * (e.g., db.collection<User>("x") and db.collection<Product>("x"))
      * will return the same underlying collection. TypeScript cannot detect this misuse.
      */
-    collection<T extends Document>(name: string): Collection<T> {
+    collection<T extends Document>(name: string, options?: CollectionOptions): Collection<T> {
         if (!this.collections.has(name)) {
-            const col = new Collection<Document>(name, this.prefix);
+            const col = new Collection<Document>(name, options);
             if (this.isBatching) col.beginBatch();
             this.collections.set(name, col);
         }
@@ -50,7 +88,17 @@ export class BrowserDB {
         if (this.isBatching) throw new DatabaseError("Nested transactions are not supported.");
         this.isBatching = true;
         
-        for (const collection of this.collections.values()) {
+        const involvedCollections = Array.from(this.collections.values());
+        
+        // Take a snapshot backup of all collections before beginning the batch
+        const backups = new Map<Collection<Document>, Document[]>();
+        for (const collection of involvedCollections) {
+            const data = await collection.find();
+            // Clone snapshot so changes inside transaction do not mutate it
+            backups.set(collection, deepClone(data));
+        }
+
+        for (const collection of involvedCollections) {
             collection.beginBatch();
         }
 
@@ -61,19 +109,34 @@ export class BrowserDB {
         } finally {
             this.isBatching = false;
             let throwError: any = null;
-            for (const collection of this.collections.values()) {
-                if (success) {
+            
+            if (success) {
+                // Attempt to commit all collections
+                for (const collection of involvedCollections) {
                     try {
                         await collection.commitBatch();
                     } catch (e) {
-                        success = false; // Prevent further commits
+                        success = false;
                         throwError = e;
-                        collection.rollbackBatch();
+                        break;
                     }
-                } else {
-                    collection.rollbackBatch();
                 }
             }
+            
+            if (!success) {
+                // Rollback: abort inflight batches and restore from snapshot
+                for (const collection of involvedCollections) {
+                    collection.rollbackBatch();
+                    const backup = backups.get(collection);
+                    if (backup) {
+                        await collection.clear();
+                        await collection.insertMany(backup);
+                    } else {
+                        await collection.clear();
+                    }
+                }
+            }
+            
             if (throwError) throw throwError;
         }
     }
@@ -86,12 +149,23 @@ export class BrowserDB {
     }
 
     has(name: string): boolean {
-        return localStorage.getItem(`${this.prefix}${name}`) !== null;
+        return localStorage.getItem(`${this.prefix}${name}`) !== null ||
+               localStorage.getItem(`${this.prefix}meta_${name}`) !== null;
     }
 
-    dropCollection(name: string): void {
-        localStorage.removeItem(`${this.prefix}${name}`);
-        this.collections.delete(name);
+    async dropCollection(name: string): Promise<void> {
+        const col = this.collections.get(name);
+        if (col) {
+            await col.destroy();
+            this.collections.delete(name);
+        } else {
+            // Collection not in memory - delete storage manually
+            localStorage.removeItem(`${this.prefix}${name}`);
+            localStorage.removeItem(`${this.prefix}meta_${name}`);
+            if (typeof indexedDB !== "undefined") {
+                try { indexedDB.deleteDatabase(`browserdb_col_${name}`); } catch {}
+            }
+        }
 
         // Remove gallery if it was instantiated
         if (this.galleries.has(name)) {
@@ -109,7 +183,12 @@ export class BrowserDB {
         }
     }
 
-    clear(): void {
+    async clear(): Promise<void> {
+        for (const collection of this.collections.values()) {
+            await collection.clear();
+            collection.close();
+        }
+        
         const keysToRemove: string[] = [];
         for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
@@ -151,6 +230,8 @@ export class BrowserDB {
         let collectionsCount = 0;
         let docsCount = 0;
 
+        const collectionNames = new Set<string>();
+
         for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
             if (key && key.startsWith(this.prefix)) {
@@ -161,14 +242,23 @@ export class BrowserDB {
                 usedBytes += (key.length + rawData.length) * 2;
 
                 if (!key.startsWith(`${this.prefix}img_`)) {
-                    collectionsCount++;
-                    try {
-                        const collectionName = key.substring(this.prefix.length);
-                        docsCount += await this.collection(collectionName).count();
-                    } catch {
-                        // Ignore decompression/parsing errors for stats
+                    if (key.startsWith(`${this.prefix}meta_`)) {
+                        collectionNames.add(key.substring(`${this.prefix}meta_`.length));
+                    } else if (key.startsWith(`${this.prefix}gallery_`)) {
+                        // Ignore gallery metas for stats docs
+                    } else {
+                        collectionNames.add(key.substring(this.prefix.length));
                     }
                 }
+            }
+        }
+
+        collectionsCount = collectionNames.size;
+        for (const name of collectionNames) {
+            try {
+                docsCount += await this.collection(name).count();
+            } catch {
+                // Ignore errors reading collection
             }
         }
 

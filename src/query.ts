@@ -1,6 +1,6 @@
 /**
  * BrowserDB
- * A lightweight, dependency-free, MongoDB-inspired document database
+ * A lightweight, MongoDB-inspired document database
  * built on top of the browser's localStorage.
  *
  * Copyright (c) 2026–present Bhargav Barman
@@ -74,7 +74,7 @@ export class Query {
                     if (ops.$nin.includes(docValue)) return false;
                 }
             } else if (typeof condition === "object" && condition !== null) {
-                if (JSON.stringify(docValue) !== JSON.stringify(condition)) return false;
+                if (!deepEqual(docValue, condition)) return false;
             } else {
                 if (docValue !== condition) return false;
             }

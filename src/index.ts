@@ -1,6 +1,6 @@
 /**
  * BrowserDB
- * A lightweight, dependency-free, MongoDB-inspired document database
+ * A lightweight, MongoDB-inspired document database
  * built on top of the browser's localStorage.
  *
  * Copyright (c) 2026–present Bhargav Barman
@@ -17,6 +17,6 @@ export * from "./errors";
 export * from "./utils/uuid";
 export * from "./gallery";
 export * from "./query";
-export * from "./storage";
+
 export * from "./collection";
 export * from "./database";
