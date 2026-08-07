@@ -136,9 +136,15 @@ export class Storage<T> {
     async commitBatch(): Promise<boolean> {
         this.isBatching = false;
         if (this.hasBatchedChanges && this.cachedData) {
-            this.hasBatchedChanges = false;
-            await this.write(this.cachedData);
-            return true;
+            try {
+                await this.write(this.cachedData);
+                this.hasBatchedChanges = false;
+                return true;
+            } catch (e) {
+                // If write fails, revert the batching state so it doesn't leave cache corrupt
+                this.rollbackBatch();
+                throw e;
+            }
         }
         return false;
     }

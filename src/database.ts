@@ -14,14 +14,14 @@
 
 import { Collection } from "./collection";
 import { DatabaseError } from "./errors";
-import { ImageStore } from "./imageStore";
+import { Gallery } from "./gallery";
 import { DatabaseStats, Document } from "./types";
 import { uuid } from "./utils/uuid";
 
 export class BrowserDB {
     private readonly prefix = "browserdb_";
     private collections: Map<string, Collection<Document>> = new Map();
-    private imageStores: Map<string, ImageStore> = new Map();
+    private galleries: Map<string, Gallery> = new Map();
     private isBatching = false;
 
     public uuid = { v4: uuid };
@@ -60,40 +60,53 @@ export class BrowserDB {
             success = true;
         } finally {
             this.isBatching = false;
+            let throwError: any = null;
             for (const collection of this.collections.values()) {
                 if (success) {
-                    await collection.commitBatch();
+                    try {
+                        await collection.commitBatch();
+                    } catch (e) {
+                        success = false; // Prevent further commits
+                        throwError = e;
+                        collection.rollbackBatch();
+                    }
                 } else {
                     collection.rollbackBatch();
                 }
             }
+            if (throwError) throw throwError;
         }
     }
 
-    images(name: string): ImageStore {
-        if (!this.imageStores.has(name)) {
-            this.imageStores.set(name, new ImageStore(name, this.prefix));
+    gallery(name: string): Gallery {
+        if (!this.galleries.has(name)) {
+            this.galleries.set(name, new Gallery(name, this.prefix));
         }
-        return this.imageStores.get(name)!;
+        return this.galleries.get(name)!;
     }
 
     has(name: string): boolean {
-        return localStorage.getItem(`${this.prefix}${name}`) !== null || localStorage.getItem(`${this.prefix}img_${name}_`) !== null;
+        return localStorage.getItem(`${this.prefix}${name}`) !== null;
     }
 
     dropCollection(name: string): void {
         localStorage.removeItem(`${this.prefix}${name}`);
         this.collections.delete(name);
 
-        const imgPrefix = `${this.prefix}img_${name}_`;
-        const keysToRemove: string[] = [];
-        for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key && key.startsWith(imgPrefix)) {
-                keysToRemove.push(key);
+        // Remove gallery if it was instantiated
+        if (this.galleries.has(name)) {
+            this.galleries.get(name)?.clear().catch(() => {});
+            this.galleries.delete(name);
+        }
+        
+        // Asynchronously delete the IndexedDB database for this gallery
+        if (typeof indexedDB !== "undefined") {
+            try {
+                indexedDB.deleteDatabase(`${this.prefix}gallery_${name}`);
+            } catch {
+                // Ignore error if it fails
             }
         }
-        keysToRemove.forEach(key => localStorage.removeItem(key));
     }
 
     clear(): void {
@@ -106,7 +119,25 @@ export class BrowserDB {
         }
         keysToRemove.forEach(key => localStorage.removeItem(key));
         this.collections.clear();
-        this.imageStores.clear();
+        
+        for (const [name, gallery] of this.galleries.entries()) {
+            gallery.clear().catch(() => {});
+            if (typeof indexedDB !== "undefined") {
+                try { indexedDB.deleteDatabase(`${this.prefix}gallery_${name}`); } catch {}
+            }
+        }
+        this.galleries.clear();
+        
+        // Fallback for deleting all IndexedDB databases (Modern Browsers only)
+        if (typeof indexedDB !== "undefined" && indexedDB.databases) {
+            indexedDB.databases().then(dbs => {
+                for (const db of dbs) {
+                    if (db.name && db.name.startsWith(`${this.prefix}gallery_`)) {
+                        try { indexedDB.deleteDatabase(db.name); } catch {}
+                    }
+                }
+            }).catch(() => {});
+        }
     }
 
     /**

@@ -111,7 +111,23 @@ export class Collection<T extends Document> {
                 // Fallback if item contains non-cloneable properties
             }
         }
-        return JSON.parse(JSON.stringify(item));
+        
+        // Custom fallback to preserve undefined values which JSON.stringify strips
+        const recursiveClone = (obj: any): any => {
+            if (obj === null || typeof obj !== "object") return obj;
+            if (Array.isArray(obj)) return obj.map(recursiveClone);
+            if (obj instanceof Date) return new Date(obj.getTime());
+            
+            const clonedObj: any = {};
+            for (const key in obj) {
+                if (Object.prototype.hasOwnProperty.call(obj, key)) {
+                    clonedObj[key] = recursiveClone(obj[key]);
+                }
+            }
+            return clonedObj;
+        };
+        
+        return recursiveClone(item);
     }
 
     private async getValidData(triggerCleanup = true): Promise<WithId<T>[]> {
@@ -524,6 +540,7 @@ export class Collection<T extends Document> {
             }
 
             data.splice(index, 1);
+            this.indexedDataRef = null; // Reset index since array reference is mutated
             await this.storage.write(data);
             this.notifyListeners();
             

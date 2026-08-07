@@ -13,6 +13,7 @@
  */
 
 import { Filter, QueryOperators, WithId } from "./types";
+import { deepEqual } from "./utils/deepEqual";
 
 export class Query {
     /**
@@ -51,7 +52,7 @@ export class Query {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const ops = condition as any;
                 
-                if (ops.$ne !== undefined && docValue === ops.$ne) return false;
+                if (ops.$ne !== undefined && deepEqual(docValue, ops.$ne)) return false;
                 
                 if (ops.$gt !== undefined) {
                     if (!Query.isComparable(docValue, ops.$gt) || (docValue as string | number) <= (ops.$gt as string | number)) return false;

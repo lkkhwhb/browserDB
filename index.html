@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BrowserDB — Lightweight MongoDB-Inspired Browser Document Database</title>
+    <title>BrowserDB 1.2.0 — Lightweight MongoDB-Inspired Browser Document Database</title>
     <meta name="description" content="BrowserDB is a lightweight client-side database optimized for the localStorage backend. Full TypeScript support, query operators, CDN ready.">
     <meta name="keywords" content="BrowserDB, localStorage, browser database, MongoDB, TypeScript, JavaScript, document database, CDN, npm, client-side storage">
     <meta name="author" content="lkkhwhb">
@@ -159,7 +159,7 @@
     <h1>BrowserDB</h1>
     <p class="tagline">A lightweight client-side database optimized for the localStorage backend. Zero config. TypeScript-first. CDN ready.</p>
     <div class="header-meta">
-        <span class="pill pill-outline">v1.1.1</span>
+        <span class="pill pill-outline">v1.2.0</span>
         <span class="pill pill-outline">TypeScript</span>
         <span class="pill pill-outline">~7 KB gzipped</span>
         <span class="pill pill-outline">Auto comression</span>
@@ -177,7 +177,7 @@
 </header>
 
 <nav class="toc" aria-label="Table of contents">
-    <div class="subtitle">v1.1.1 • Under 10KB Gzipped</div>
+    <div class="subtitle">v1.2.0 • Under 10KB Gzipped</div>
     <div class="toc-title">Table of Contents</div>
     <ol>
         <li><a href="#why-browserdb">Why BrowserDB?</a></li>
@@ -225,8 +225,8 @@
     </div>
     <div class="card">
         <div class="card-icon">🖼️</div>
-        <h4>Image Optimization</h4>
-        <p>Built-in <code>db.images()</code> API leverages HTML Canvas to auto-resize and convert image uploads into highly-efficient <strong>WebP</strong> base64 strings before saving.</p>
+        <h4>Gallery API</h4>
+        <p>Built-in <code>db.gallery(name)</code> API manages <strong>images, videos, audio, and raw media</strong> using IndexedDB to auto-bypass the 5MB quota and generate instant Object URLs.</p>
     </div>
     <div class="card">
         <div class="card-icon">⚡</div>
@@ -324,10 +324,10 @@
 
 <section id="media">
 <h2>Media Handling</h2>
-<p>Storing raw media in <code>localStorage</code> quickly consumes quota. BrowserDB provides a dedicated <code>db.images(name)</code> API that leverages the HTML <code>&lt;canvas&gt;</code> to automatically resize and compress image uploads into highly-efficient <code>WebP</code> base64 strings before saving.</p>
+<p>Storing raw media in <code>localStorage</code> quickly consumes quota. BrowserDB provides a dedicated <code>db.gallery(name)</code> API that stores <strong>images, videos, and all binary media files</strong> directly into IndexedDB, entirely bypassing the 5MB quota while keeping the main UI thread lag-free!</p>
 <div class="code-block">
     <div class="code-header"><span class="code-lang">TypeScript</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
-    <pre><code><span class="kw">const</span> gallery = db.<span class="fn">images</span>(<span class="str">"gallery"</span>);
+    <pre><code><span class="kw">const</span> gallery = db.<span class="fn">gallery</span>(<span class="str">"gallery"</span>);
 
 document.<span class="fn">getElementById</span>(<span class="str">"upload"</span>).<span class="fn">addEventListener</span>(<span class="str">"change"</span>, async (e) =&gt; {
     <span class="kw">const</span> file = e.target.files[<span class="num">0</span>];
@@ -363,23 +363,15 @@ document.<span class="fn">getElementById</span>(<span class="str">"upload"</span
   <span class="op">&lt;</span><span class="pr">script</span> <span class="ty">src</span><span class="op">=</span><span class="str">"https://cdn.jsdelivr.net/npm/@lkkhwhb/browserdb@latest/dist/browserdb.global.js"</span><span class="op">&gt;&lt;/</span><span class="pr">script</span><span class="op">&gt;</span>
 <span class="op">&lt;/</span><span class="pr">head</span><span class="op">&gt;</span>
 <span class="op">&lt;</span><span class="pr">body</span><span class="op">&gt;</span>
-  <span class="op">&lt;</span><span class="pr">h1</span><span class="op">&gt;</span>BrowserDB Notes<span class="op">&lt;/</span><span class="pr">h1</span><span class="op">&gt;</span>
-  <span class="op">&lt;</span><span class="pr">input</span> id=<span class="str">"titleInput"</span> type=<span class="str">"text"</span> placeholder=<span class="str">"Title"</span> <span class="op">/&gt;</span>
-  <span class="op">&lt;</span><span class="pr">input</span> id=<span class="str">"contentInput"</span> type=<span class="str">"text"</span> placeholder=<span class="str">"Content"</span> <span class="op">/&gt;</span>
-  <span class="op">&lt;</span><span class="pr">button</span> onclick=<span class="str">"addNote()"</span><span class="op">&gt;</span>Insert Note<span class="op">&lt;/</span><span class="pr">button</span><span class="op">&gt;</span>
-  <span class="op">&lt;</span><span class="pr">ul</span> id=<span class="str">"notesList"</span><span class="op">&gt;&lt;/</span><span class="pr">ul</span><span class="op">&gt;</span>
+  <span class="op">&lt;</span><span class="pr">form</span> id=<span class="str">"postForm"</span><span class="op">&gt;</span>
+    <span class="op">&lt;</span><span class="pr">input</span> id=<span class="str">"titleInput"</span> <span class="op">/&gt;</span>
+    <span class="op">&lt;</span><span class="pr">input</span> id=<span class="str">"contentInput"</span> <span class="op">/&gt;</span>
+    <span class="op">&lt;</span><span class="pr">input</span> type=<span class="str">"file"</span> id=<span class="str">"mediaInput"</span> accept=<span class="str">"image/*,video/*,audio/*"</span> <span class="op">/&gt;</span>
+    <span class="op">&lt;</span><span class="pr">button</span> type=<span class="str">"submit"</span><span class="op">&gt;</span>Submit<span class="op">&lt;/</span><span class="pr">button</span><span class="op">&gt;</span>
+  <span class="op">&lt;/</span><span class="pr">form</span><span class="op">&gt;</span>
 
   <span class="op">&lt;</span><span class="pr">script</span><span class="op">&gt;</span>
     <span class="kw">const</span> db = <span class="kw">new</span> window.BrowserDB.BrowserDB();
-    <span class="kw">const</span> notes = db.collection(<span class="str">"notes"</span>);
-
-    async <span class="kw">function</span> renderNotes() {
-      <span class="kw">const</span> list = document.getElementById(<span class="str">"notesList"</span>);
-      list.innerHTML = <span class="str">""</span>;
-      <span class="kw">const</span> allNotes = await notes.find();
-      allNotes.forEach(n =&gt; {
-        <span class="kw">const</span> li = document.createElement(<span class="str">"li"</span>);
-        li.textContent = n.title + <span class="str">": "</span> + n.content;
         list.appendChild(li);
       });
     }

@@ -17,7 +17,7 @@ BrowserDB provides a clean, strongly typed API for storing and querying JSON doc
 * **⚡ In-Memory Caching**: Automatically caches documents in memory for instant read performance while perfectly synchronizing cross-tab updates.
 * **🔥 Auto-Compression**: Automatically compresses all documents through native `CompressionStream` (deflate), then packs the binary via a custom **UTF-16 bit-packer**, giving you **up to 60MB of usable space** (~12x extra space) while staying under the browser's 5MB limit!
 * **⏱️ TTL (Time To Live)**: Documents can automatically self-destruct after a specified time to keep your storage quota clean.
-* **🖼️ Image Optimization API**: The built-in `db.images()` API handles file uploads by auto-resizing and converting images to highly efficient WebP Base64 strings.
+* **🖼️ Hybrid Media Engine (Gallery API, NEW!)**: The built-in `db.gallery()` safely manages high-res binary images/videos using IndexedDB, avoiding the 5MB `localStorage` limit and Base64 size bloat. It provides automatic `URL.createObjectURL` parsing for instant 0-boilerplate rendering.
 * **Zero External Config**: Works out of the box in modern browsers, Vite (React TS / JS), Next.js, and vanilla applications.
 * **Direct CDN Support**: Import via standard HTML `<script>` tags (`window.BrowserDB`).
 * **Modular Architecture**: Cleanly architected into single-responsibility modules in `src/`.
@@ -487,22 +487,40 @@ To mitigate `localStorage`'s ~5MB capacity limits, BrowserDB automatically passe
 
 ## Media Handling
 
-Storing raw media in `localStorage` quickly consumes quota. BrowserDB provides a dedicated `db.images(name)` API that leverages the HTML `<canvas>` to automatically resize and compress image uploads into highly-efficient `WebP` base64 strings before saving.
+## 🖼️ The Hybrid Media Engine (Gallery API)
 
-```ts
-const gallery = db.images("gallery");
+`localStorage` imposes a strict 5MB limit. Base64 strings bloat files by 33%. 
 
-const fileInput = document.getElementById("upload");
-fileInput.addEventListener("change", async (e) => {
-    const file = e.target.files[0];
+BrowserDB solves this by providing a dual-engine architecture. It routes raw binary files directly to **IndexedDB**, completely bypassing storage quotas and preserving the browser's UI thread!
 
-    // Auto-resizes to maxWidth 1000px and converts to WebP (quality 0.8)
-    await gallery.store("vacation-pic", file, { maxWidth: 1000, quality: 0.8 });
-    
-    // Retrieve base64 Data URL to display in an <img> tag
-    const imgDataUrl = await gallery.get("vacation-pic");
-});
+```typescript
+const db = new BrowserDB();
+const myGallery = db.gallery("profile_pictures");
+
+// Get a File from an HTML <input type="file" />
+const fileInput = document.querySelector('input[type="file"]');
+const file = fileInput.files[0];
+
+// 1. Store the raw binary! No Base64 needed.
+await myGallery.store("user_123_avatar", file);
+
+// 2. High-Performance Retrieval
+// Returns an instantly usable Object URL (blob:http://...)
+const imageUrl = await myGallery.get("user_123_avatar");
+document.querySelector('img').src = imageUrl;
+
+// 3. Proper Cleanup (Memory Management)
+// Object URLs allocate memory. When you're done rendering the image, clean it up!
+URL.revokeObjectURL(imageUrl);
+
+// Or get the raw Blob directly:
+const rawBlob = await myGallery.getBlob("user_123_avatar");
+
+// 4. Remove the file
+await myGallery.remove("user_123_avatar");
 ```
+
+> **Note**: Calling `db.dropCollection("profile_pictures")` will automatically drop the associated IndexedDB gallery database to prevent orphaned binaries!
 
 ---
 
